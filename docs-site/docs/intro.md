@@ -16,7 +16,7 @@ The Obsidian MOC Plugin is a smart **Map of Content** generator for [Obsidian](h
 ## Features
 
 - **Interactive MOC Creation Wizard**: Build complex query blocks visually without manually writing YAML.
-- **Dynamic Element Extraction**: Extract specific elements like **Lists**, **Tasks**, **Headings**, **Paragraphs**, or **Blockquotes** from markdown notes.
+- **Dynamic Element Extraction**: Extract specific elements like **Lists**, **Tasks**, **Headings**, **Paragraphs**, or **Blockquotes** from markdown notes, alone or combined in one block (`element: [Task, Blockquote]`).
 - **Advanced Filtering**: Match elements by exact word, text patterns, tags, task completion status, regular expressions, or frontmatter properties — with full boolean logic (`AND`, `OR`, `NOT`).
 - **Property Comparison Operators**: Filter by frontmatter values using `==`, `!=`, `>`, `<`, `>=`, `<=` for numeric and date comparisons.
 - **Hierarchical Grouping**: Group matching elements dynamically by **folder**, **creation date (cday)**, **modification date (mday)**, **tag**, or any **frontmatter property**.

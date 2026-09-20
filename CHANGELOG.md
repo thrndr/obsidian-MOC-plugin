@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## In-progress
 
+- **Feature: Multiple elements per block** — `element` now accepts a list (`element: [Task, Blockquote]`) or a comma-separated string as well as a single type. Results are merged in document order per note; a block inside another matched block (e.g. a task inside a matching heading section) is dropped so nothing is repeated. Blocks of different types are always separated by a blank line so paragraphs never merge into a preceding list. The wizard's Element dropdown is now a multi-select. Blocks using a list of elements are not understood by plugin versions before 1.5.0.
+- **Refactor**: Element extraction moved out of `generateMocMarkdown` into `src/extractors/`, with new unit tests (`src/tests/moc-elements.test.ts`). Added showcase note "13 - Multiple elements".
 - **Feature: Copy as Markdown** — Added a Copy button to the MOC block toolbar that copies the rendered Markdown output to the clipboard without modifying the note.
 - **Feature: `properties()` comparison operators** — Added `>`, `<`, `>=`, `<=`, `!=` operators to `properties()` filters for numeric and date comparisons (e.g. `properties(priority <= 2)`, `properties(date >= "2024-01-01")`).
 - **Feature: `template` option** — Custom output formatting for each matched element by referencing a template note (configured via the **Template folder** setting) whose content uses `{{content}}`, `{{file}}`, `{{path}}`, and `{{link}}` handlebars-style placeholders.

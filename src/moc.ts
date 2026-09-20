@@ -1,5 +1,6 @@
 import { App, MarkdownRenderer, MarkdownPostProcessorContext, MarkdownRenderChild, moment, Notice, TFile, debounce, TAbstractFile } from 'obsidian';
 import { MOCPluginSettings } from './settings';
+import { extractElements, normalizeElements } from './extractors';
 
 export type FilterType = 'has_word' | 'contains' | 'has_text' | 'matches' | 'has_tag' | 'is_completed' | 'is_incomplete' | 'properties';
 
@@ -296,7 +297,7 @@ export function evaluateFilter(text: string, node: ASTNode, isCompletedTask?: bo
 
 
 
-function extractTags(text: string): string[] {
+export function extractTags(text: string): string[] {
     const tags = new Set<string>();
     const tagRegex = /(?:^|\s)(#[^\s#]+)/g;
     let match;
@@ -315,6 +316,24 @@ export interface MatchedBlock {
     file: TFile;
     lines: string[];
     tags: string[];
+    element?: string;
+}
+
+/**
+ * Pushes the spacing between two adjacent blocks of one note. Blocks of different
+ * element types always get a blank line so a paragraph never merges into a preceding list.
+ */
+export function pushBlockSeparator(
+    out: string[],
+    config: Pick<MocConfig, 'blockSeparator'>,
+    prev: MatchedBlock,
+    next: MatchedBlock
+): void {
+    if (config.blockSeparator === 'divider') {
+        out.push("", "---", "");
+    } else if (config.blockSeparator === 'newline' || (prev.element !== undefined && next.element !== undefined && prev.element !== next.element)) {
+        out.push("");
+    }
 }
 
 export function applyFindReplace(text: string, find?: string, replace?: string): string {
@@ -351,7 +370,7 @@ export function applyTemplate(text: string, template: string, file: TFile): stri
 
 export interface MocConfig {
     folder?: string;
-    element?: string;
+    element?: string | string[];
     filter?: string;
     recursive?: boolean;
     groupBy?: string;
@@ -474,9 +493,9 @@ export async function generateMocMarkdown(
         expandedFolder = expandedFolder.replace(/\{\{this\.path\}\}/g, pathNoExt);
     }
 
-    const validElements = ['List', 'Task', 'Heading', 'Paragraph', 'Blockquote'];
-    if (!validElements.includes(config.element as string)) {
-        return { error: `Error: element must be one of: ${validElements.join(', ')}.`, cls: 'moc-error' };
+    const { elements, error: elementError } = normalizeElements(config.element);
+    if (!elements) {
+        return { error: elementError, cls: 'moc-error' };
     }
 
     if (!config.filter || typeof config.filter !== 'string') {
@@ -636,124 +655,15 @@ export async function generateMocMarkdown(
         const fileContent = await app.vault.cachedRead(file);
         const lines = fileContent.split(/\r?\n/);
 
-        if (config.element === 'List' || config.element === 'Task') {
-            if (!fileCache.listItems || fileCache.listItems.length === 0) continue;
+        const rawBlocks = extractElements({
+            fileCache,
+            lines,
+            matches: (text, isCompletedTask) => evaluateFilter(text, parsedFilter, isCompletedTask),
+            tagsOf: extractTags,
+        }, elements);
 
-            const listItems = fileCache.listItems;
-            let skipUntilLine = -1;
-
-            for (let i = 0; i < listItems.length; i++) {
-                const item = listItems[i];
-                if (!item) continue;
-
-                if (config.element === 'Task' && item.task === undefined) continue;
-
-                if (item.position.start.line <= skipUntilLine) continue;
-
-                const lineContent = lines[item.position.start.line];
-                if (!lineContent) continue;
-
-                if (evaluateFilter(lineContent, parsedFilter, item.task !== undefined ? item.task !== ' ' : undefined)) {
-
-                    let lastChildLine = item.position.start.line;
-                    let j = i + 1;
-                    while (j < listItems.length) {
-                        const nextItem = listItems[j];
-                        if (!nextItem) { j++; continue; }
-
-                        if (nextItem.parent === item.position.start.line || (nextItem.parent !== undefined && nextItem.parent > item.position.start.line)) {
-                            lastChildLine = nextItem.position.start.line;
-                            j++;
-                        } else {
-                            break;
-                        }
-                    }
-
-                    skipUntilLine = lastChildLine;
-
-                    const startLine = item.position.start.line;
-                    const lastItemMatched = listItems[j - 1];
-                    const endLine = lastItemMatched ? lastItemMatched.position.end.line : startLine;
-
-                    const baseIndentMatch = lines[startLine]?.match(/^(\s*)/);
-                    const baseIndent = baseIndentMatch ? baseIndentMatch[1] : '';
-
-                    const blockLines: string[] = [];
-                    for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
-                        let currentLine = lines[lineNum];
-                        if (currentLine === undefined) continue;
-
-                        if (baseIndent && currentLine.startsWith(baseIndent)) {
-                            currentLine = currentLine.substring(baseIndent.length);
-                        }
-                        blockLines.push(currentLine);
-                    }
-                    const blockText = blockLines.join('\n');
-                    matchedBlocks.push({ file, lines: blockLines, tags: extractTags(blockText) });
-                }
-            }
-        } else if (config.element === 'Heading') {
-            if (!fileCache.headings || fileCache.headings.length === 0) continue;
-
-            const headings = fileCache.headings;
-            let skipUntilLine = -1;
-
-            for (let i = 0; i < headings.length; i++) {
-                const heading = headings[i];
-                if (!heading) continue;
-                if (heading.position.start.line <= skipUntilLine) continue;
-
-                const lineContent = lines[heading.position.start.line];
-                if (!lineContent) continue;
-
-                if (evaluateFilter(heading.heading, parsedFilter)) {
-
-                    const startLine = heading.position.start.line;
-                    let endLine = lines.length - 1;
-
-                    for (let j = i + 1; j < headings.length; j++) {
-                        const nextHeading = headings[j];
-                        if (nextHeading && nextHeading.level <= heading.level) {
-                            endLine = nextHeading.position.start.line - 1;
-                            break;
-                        }
-                    }
-
-                    skipUntilLine = endLine;
-
-                    const blockLines: string[] = [];
-                    for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
-                        if (lines[lineNum] !== undefined) {
-                            blockLines.push(lines[lineNum] as string);
-                        }
-                    }
-                    const blockText = blockLines.join('\n');
-                    matchedBlocks.push({ file, lines: blockLines, tags: extractTags(blockText) });
-                }
-            }
-        } else if (config.element === 'Paragraph' || config.element === 'Blockquote') {
-            if (!fileCache.sections || fileCache.sections.length === 0) continue;
-
-            const targetType = config.element.toLowerCase();
-
-            for (const section of fileCache.sections) {
-                if (section.type !== targetType) continue;
-
-                const startLine = section.position.start.line;
-                const endLine = section.position.end.line;
-
-                const sectionLines = [];
-                for (let i = startLine; i <= endLine; i++) {
-                    if (lines[i] !== undefined) {
-                        sectionLines.push(lines[i]);
-                    }
-                }
-                const sectionText = sectionLines.join('\n');
-
-                if (evaluateFilter(sectionText, parsedFilter)) {
-                    matchedBlocks.push({ file, lines: sectionLines as string[], tags: extractTags(sectionText) });
-                }
-            }
+        for (const raw of rawBlocks) {
+            matchedBlocks.push({ file, lines: raw.lines, tags: raw.tags, element: raw.element });
         }
     }
 
@@ -846,14 +756,9 @@ export async function generateMocMarkdown(
                 const block = blocks[i];
                 if (block) {
                     outputLines.push(...block.lines);
-                    if (i < blocks.length - 1) {
-                        if (config.blockSeparator === 'divider') {
-                            outputLines.push("");
-                            outputLines.push("---");
-                            outputLines.push("");
-                        } else if (config.blockSeparator === 'newline') {
-                            outputLines.push("");
-                        }
+                    const nextBlock = blocks[i + 1];
+                    if (nextBlock) {
+                        pushBlockSeparator(outputLines, config, block, nextBlock);
                     }
                 }
             }
@@ -961,14 +866,9 @@ export async function generateMocMarkdown(
                     const block = fileBlocks[i];
                     if (block) {
                         outputLines.push(...block.lines);
-                        if (i < fileBlocks.length - 1) {
-                            if (config.blockSeparator === 'divider') {
-                                outputLines.push("");
-                                outputLines.push("---");
-                                outputLines.push("");
-                            } else if (config.blockSeparator === 'newline') {
-                                outputLines.push("");
-                            }
+                        const nextBlock = fileBlocks[i + 1];
+                        if (nextBlock) {
+                            pushBlockSeparator(outputLines, config, block, nextBlock);
                         }
                     }
                 }

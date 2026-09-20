@@ -36,6 +36,21 @@ The specific markdown element to extract from matching notes. Must be one of the
 - `Paragraph`: Markdown paragraph blocks.
 - `Blockquote`: Markdown blockquotes.
 
+**Multiple elements.** Combine several types in one block with a YAML list (a comma-separated string such as `element: Task, Blockquote` also works). Names are case-sensitive and duplicates are ignored:
+
+```moc
+folder: Projects
+element: [Task, Blockquote]
+filter: is_incomplete() OR contains("#decision")
+```
+
+How combined elements behave:
+- **Order**: results appear in document order within each note, not grouped by type.
+- **Overlap**: if a matched block lies inside another matched block, only the outer block is kept. A matching `Heading` includes its whole section, so lists and paragraphs inside it are not repeated. `Task` is part of `List`, so `[Task, List]` never repeats a task.
+- **One filter, applied per type**: `Heading` is matched on the heading text only; the other types are matched on their full text. `is_completed()` and `is_incomplete()` match only tasks, so `NOT is_completed()` also matches every non-task element.
+- **Spacing**: blocks of different types are always separated by a blank line, even with `blockSeparator: none`, so a paragraph never merges into a preceding list.
+- **Compatibility**: a block using a list of elements is not understood by plugin versions before 1.5.0. A single `element: List` works everywhere.
+
 ### `filter` (Required)
 The matching condition applied to each candidate element. Supports both primitive functions and complex logical expressions.
 - Supports dynamic parameters: `{{this.filename}}`, `{{this.folder}}`, `{{this.path}}`.
@@ -50,7 +65,7 @@ The matching condition applied to each candidate element. Supports both primitiv
   - `matches("regex_pattern")`: Evaluates the element using a regular expression match. Supports optional slash-delimited format with flags, e.g. `matches("/pattern/i")`.
 - **Tags**:
   - `has_tag("#tag")`: Evaluates if the element contains the specified hashtag (fully tag-aware, case-insensitive, and matches subtags like `#tag/subtag`).
-- **Tasks** (only when `element` is `Task` or `List`):
+- **Tasks** (only match tasks; the wizard offers them when `element` includes `Task` or `List`):
   - `is_completed()`: Matches completed tasks.
   - `is_incomplete()`: Matches incomplete tasks.
   

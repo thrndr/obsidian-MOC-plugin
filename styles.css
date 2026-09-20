@@ -983,3 +983,19 @@ select.dropdown.moc-shaping-pill-select {
     background-color: var(--background-modifier-hover);
     color: var(--text-normal);
 }
+
+/* Multi-select element chips in the wizard */
+.moc-element-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 4px 8px;
+}
+
+.moc-element-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: var(--font-ui-small);
+}

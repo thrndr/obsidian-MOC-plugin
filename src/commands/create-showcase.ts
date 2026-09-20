@@ -33,6 +33,7 @@ without writing a single line of YAML manually.
 | [[10 - Find and replace rules]] | \`applyFnR\`, settings rules |
 | [[11 - Copy Bake and live refresh]] | Toolbar buttons, auto-refresh |
 | [[12 - Separators and dynamic parameters]] | \`blockSeparator\`, \`noteSeparator\`, \`{{this.folder}}\` |
+| [[13 - Multiple elements]] | \`element: [Task, Blockquote]\`, overlap rules |
 `,
     },
 
@@ -653,6 +654,55 @@ recursive: true
 **What to notice:**
 - Dynamic parameters work inside both \`folder\` and \`filter\`.
 - They're expanded relative to whichever note the \`moc\` block lives in, not the showcase notes specifically.
+`,
+    },
+    {
+        path: `${SHOWCASE_FOLDER}/13 - Multiple elements.md`,
+        content: `# 13 — Multiple elements
+
+\`element\` accepts a single type or a list of types. Results from every listed
+type are merged in **document order** per note.
+
+## Tasks and blockquotes together
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: [Task, Blockquote]
+filter: is_incomplete() OR contains("#decision")
+recursive: true
+\`\`\`
+
+## Lists and paragraphs together
+
+Blocks of different types are always separated by a blank line so a paragraph
+never merges into the list above it.
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: [List, Paragraph]
+filter: has_tag("project") OR contains("aligned")
+recursive: true
+excludeFolder: ${SHOWCASE_FOLDER}/data/exclude-me
+\`\`\`
+
+## Overlapping elements
+
+A \`Heading\` block contains its whole section. When the heading matches, list
+items and paragraphs inside that section are **not** repeated.
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: [Heading, List]
+filter: contains("Action items") OR has_tag("project")
+recursive: true
+excludeFolder: ${SHOWCASE_FOLDER}/data/exclude-me
+\`\`\`
+
+**What to notice:**
+- \`element: [A, B]\`, \`element: A, B\` and \`element: A\` are all valid.
+- The same \`filter\` is applied to every type. \`Heading\` matches on the heading text only; the other types match on their full text.
+- \`is_completed()\` and \`is_incomplete()\` only match tasks, so \`NOT is_completed()\` also matches every non-task element.
+- If a block sits inside another matched block, the outer block wins.
 `,
     },
 ];
