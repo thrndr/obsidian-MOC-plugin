@@ -54,6 +54,7 @@ How combined elements behave:
 ### `filter` (Required)
 The matching condition applied to each candidate element. Supports both primitive functions and complex logical expressions.
 - Supports dynamic parameters: `{{this.filename}}`, `{{this.folder}}`, `{{this.path}}`.
+- Supports a live `{query}` placeholder, filled from a text box next to the block. See [Live query](#live-query) below.
 
 **Primitive condition functions:**
 
@@ -219,5 +220,28 @@ recursive: true
 ````
 
 ![Dynamic parameters usage](/img/Showcase_5.png)
+
+---
+
+## Live Query
+
+`{{this.*}}` parameters are expanded once, from the note the block lives in. `{query}` is different: it is a **single-brace** placeholder inside `filter` that is filled from a text box rendered above the block, and re-evaluated as you type.
+
+````yaml
+```moc
+folder: Diary
+element: List
+filter: contains("{query}")
+recursive: true
+```
+````
+
+When `filter` contains `{query}`, the block gets a search box instead of appearing directly. Typing there re-renders the block (debounced ~300 ms) with every `{query}` in `filter` replaced by the current text — no need to edit the code block. Before anything is typed, `{query}` expands to an empty string, so `contains("{query}")` matches every element.
+
+- Combine it with the rest of the filter DSL like any other value: `contains("{query}") AND has_tag("#project")`.
+- It can appear more than once in the same filter.
+- It only works inside `filter`; it is not expanded in `folder`.
+- The typed value is **not saved** — it resets when the note is closed and reopened. Use **Bake** (see [Toolbar](toolbar.md)) to freeze the currently filtered result into static Markdown.
+- Combining it with **Live auto-refresh**: a vault change still re-renders the block, but reuses whatever query is currently typed.
 
 ---

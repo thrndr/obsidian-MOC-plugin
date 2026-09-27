@@ -142,6 +142,18 @@ noteSeparator: divider
 ```
 ````
 
+### Live-searchable task list
+Show all tasks in `Projects/`, with a search box above the block so anyone can narrow it down without touching the code block:
+
+````yaml
+```moc
+folder: Projects
+element: Task
+filter: contains("{query}")
+recursive: true
+```
+````
+
 ### Multiple elements in one block
 Collect open tasks and decision quotes together, in the order they appear in each note:
 

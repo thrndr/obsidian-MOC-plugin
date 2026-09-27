@@ -34,6 +34,7 @@ without writing a single line of YAML manually.
 | [[11 - Copy Bake and live refresh]] | Toolbar buttons, auto-refresh |
 | [[12 - Separators and dynamic parameters]] | \`blockSeparator\`, \`noteSeparator\`, \`{{this.folder}}\` |
 | [[13 - Multiple elements]] | \`element: [Task, Blockquote]\`, overlap rules |
+| [[14 - Live query]] | \`{query}\` placeholder, live search box |
 `,
     },
 
@@ -703,6 +704,46 @@ excludeFolder: ${SHOWCASE_FOLDER}/data/exclude-me
 - The same \`filter\` is applied to every type. \`Heading\` matches on the heading text only; the other types match on their full text.
 - \`is_completed()\` and \`is_incomplete()\` only match tasks, so \`NOT is_completed()\` also matches every non-task element.
 - If a block sits inside another matched block, the outer block wins.
+`,
+    },
+    {
+        path: `${SHOWCASE_FOLDER}/14 - Live query.md`,
+        content: `# 14 — Live query
+
+A \`filter\` can contain the special \`{query}\` placeholder — a single-brace
+token, distinct from the double-brace \`{{this.*}}\` parameters. When present,
+the block gets a search box **above** it (always visible, no hover needed).
+Typing there re-filters the block live, without editing the code block.
+
+## Search across action items
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: List
+filter: contains("{query}")
+recursive: true
+excludeFolder: ${SHOWCASE_FOLDER}/data/exclude-me
+\`\`\`
+
+**Try it:** type \`budget\`, then \`archive\`, then clear the box.
+
+## Combine it with the rest of the filter DSL
+
+\`{query}\` is just another value — combine it with tags, booleans, and other
+primitives:
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: Task
+filter: is_incomplete() AND contains("{query}")
+recursive: true
+\`\`\`
+
+**What to notice:**
+- Before you type anything, \`{query}\` expands to an empty string, so \`contains("{query}")\` matches everything.
+- \`{query}\` only works inside \`filter\`, not \`folder\`.
+- The typed value isn't saved with the note — it resets when you reopen it. Use **Bake** to freeze the currently filtered result.
+- **Copy** and **Bake** both use whatever is currently typed in the box.
 `,
     },
 ];

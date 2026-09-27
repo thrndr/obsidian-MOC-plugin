@@ -6,6 +6,8 @@ sidebar_position: 5
 
 Every rendered MOC block has an interactive toolbar that appears when you hover over it. The toolbar sits in the top-right corner of the block and provides two actions: **Copy** and **Bake**.
 
+If the block's `filter` uses the `{query}` placeholder (see [Live Query](configuration.md#live-query)), an always-visible search box is also rendered above the block — it does not need a hover to appear, since typing in it is the point.
+
 ---
 
 ## Copy as Markdown
@@ -18,6 +20,8 @@ This is useful when you want to:
 - Quickly inspect the raw Markdown that the block generates.
 
 > **Note**: The copied text is the same Markdown that would be produced by Bake — the formatted content with all filters, grouping, and templates applied.
+
+> **Note**: If the block has a live query box, **Copy** and **Bake** both use whatever value is currently typed there.
 
 ---
 

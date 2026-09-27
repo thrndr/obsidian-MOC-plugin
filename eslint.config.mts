@@ -33,6 +33,7 @@ export default defineConfig([
 			"version-bump.mjs",
 			"versions.json",
 			"main.js",
+			"dynamic_query/**",
 			".test-out.cjs",
 			"obsidian-mock.js",
 			"test-runner.mjs",

@@ -358,6 +358,16 @@ export function applyFindReplace(text: string, find?: string, replace?: string):
     return text.split(find).join(replacement);
 }
 
+/** Whether a `filter` string contains the `{query}` placeholder, i.e. needs a live query text box. */
+export function configWantsQuery(config: Pick<MocConfig, 'filter'>): boolean {
+    return typeof config.filter === 'string' && config.filter.includes('{query}');
+}
+
+/** Replaces every `{query}` placeholder in `text` with the current live query value (empty string if none typed yet). */
+export function expandQuery(text: string, query: string): string {
+    return text.split('{query}').join(query);
+}
+
 export function applyTemplate(text: string, template: string, file: TFile): string {
     return template.replace(/\{\{(content|file|path|link)\}\}/g, (match, p1) => {
         if (p1 === 'content') return text;
@@ -394,10 +404,13 @@ class MocRenderChild extends MarkdownRenderChild {
     folderPath: string;
     isRecursive: boolean;
     updateDebounced: () => void;
+    updateQueryDebounced: () => void;
     el: HTMLElement;
     ctx: MarkdownPostProcessorContext;
     wrapper: HTMLDivElement | null = null;
     container: HTMLDivElement | null = null;
+    /** Live value typed into the query text box, substituted for `{query}` in `filter`. Not persisted. */
+    queryValue: string = '';
 
     constructor(
         containerEl: HTMLElement,
@@ -423,6 +436,10 @@ class MocRenderChild extends MarkdownRenderChild {
         this.updateDebounced = debounce(async () => {
             await this.renderMoc();
         }, 500, true);
+
+        this.updateQueryDebounced = debounce(async () => {
+            await this.renderMoc();
+        }, 300, true);
     }
 
     onload() {
@@ -459,7 +476,7 @@ class MocRenderChild extends MarkdownRenderChild {
     }
 
     async renderMoc() {
-        const result = await generateMocMarkdown(this.config, this.app, this.sourcePath, this.settings);
+        const result = await generateMocMarkdown(this.config, this.app, this.sourcePath, this.settings, this.queryValue);
 
         if (this.container) {
             this.container.empty();
@@ -476,7 +493,9 @@ export async function generateMocMarkdown(
     config: MocConfig,
     app: App,
     sourcePath: string,
-    settings: MOCPluginSettings
+    settings: MOCPluginSettings,
+    /** Current value of the live query text box; substituted for every `{query}` in `filter`. */
+    runtimeQuery: string = ''
 ): Promise<{ markdownText?: string; error?: string; cls?: string }> {
     const sourceFile = app.vault.getAbstractFileByPath(sourcePath);
 
@@ -511,6 +530,10 @@ export async function generateMocMarkdown(
 
         const pathNoExt = sourceFile.path.replace(/\.md$/, '');
         expandedFilter = expandedFilter.replace(/\{\{this\.path\}\}/g, pathNoExt);
+    }
+
+    if (configWantsQuery(config)) {
+        expandedFilter = expandQuery(expandedFilter, runtimeQuery);
     }
 
     const parsedFilter = parseFilter(expandedFilter);
@@ -913,6 +936,16 @@ export async function processMocBlock(
 ) {
     const wrapper = el.createDiv({ cls: 'moc-wrapper' });
 
+    let queryInput: HTMLInputElement | undefined;
+    if (configWantsQuery(config)) {
+        const queryBar = wrapper.createDiv({ cls: 'moc-query-bar' });
+        queryInput = queryBar.createEl('input', {
+            type: 'search',
+            cls: 'moc-query-input',
+            attr: { placeholder: 'Type to filter…', 'aria-label': 'Live query' }
+        });
+    }
+
     const toolbar = wrapper.createDiv({ cls: 'moc-toolbar' });
 
     const copyButton = toolbar.createEl('button', {
@@ -962,9 +995,16 @@ export async function processMocBlock(
     childComponent.container = container;
     ctx.addChild(childComponent);
 
+    if (queryInput) {
+        queryInput.oninput = () => {
+            childComponent.queryValue = queryInput.value;
+            childComponent.updateQueryDebounced();
+        };
+    }
+
     copyButton.onClickEvent(async (e) => {
         e.preventDefault();
-        const result = await generateMocMarkdown(config, app, sourcePath, settings);
+        const result = await generateMocMarkdown(config, app, sourcePath, settings, childComponent.queryValue);
         if (result.markdownText) {
             await navigator.clipboard.writeText(result.markdownText);
             new Notice("Copied to clipboard");
@@ -982,7 +1022,7 @@ export async function processMocBlock(
         }
         const file = app.vault.getAbstractFileByPath(sourcePath);
         if (file instanceof TFile) {
-            const result = await generateMocMarkdown(config, app, sourcePath, settings);
+            const result = await generateMocMarkdown(config, app, sourcePath, settings, childComponent.queryValue);
             if (result.markdownText) {
                 await app.vault.process(file, (data) => {
                     const lines = data.split(/\r?\n/);

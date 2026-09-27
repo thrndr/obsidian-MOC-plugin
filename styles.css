@@ -40,6 +40,27 @@
     position: relative;
 }
 
+.moc-query-bar {
+    display: flex;
+    margin-bottom: 6px;
+}
+
+.moc-query-input {
+    width: 100%;
+    max-width: 320px;
+    padding: 4px 8px;
+    font-size: var(--font-ui-small);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+}
+
+.moc-query-input:focus {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
 .moc-toolbar {
     position: absolute;
     top: 4px;
