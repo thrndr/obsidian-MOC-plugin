@@ -6,7 +6,7 @@ sidebar_position: 5
 
 Every rendered MOC block has an interactive toolbar that appears when you hover over it. The toolbar sits in the top-right corner of the block and provides two actions: **Copy** and **Bake**.
 
-If the block's `filter` uses the `{query}` placeholder (see [Live Query](configuration.md#live-query)), an always-visible search box is also rendered above the block — it does not need a hover to appear, since typing in it is the point.
+If the block's `filter` uses a live query (`{{query}}`, or a blank `has_tag("")`/`matches("")` — see [Live Query](configuration.md#live-query)), an always-visible search box is also rendered above the block — it does not need a hover to appear, since typing in it is the point. Until something is typed there, the block shows a prompt instead of its content, and **Copy**/**Bake** decline with a notice.
 
 ---
 

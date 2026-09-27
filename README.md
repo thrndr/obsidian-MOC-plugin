@@ -12,7 +12,7 @@ Dynamically generate **Map of Content (MOC)** indexes by extracting matching ele
 
 **Multiple elements per block** — Combine lists, tasks, headings, paragraphs and blockquotes in one block with `element: [Task, Blockquote]`; results come back in document order without duplicates.
 
-**Live query** — Put `{query}` in a `filter` to get a search box above the block; typing it re-filters the block without editing the code block or the note.
+**Live query** — Put `{{query}}` (or a blank `has_tag("")`/`matches("")`) in a `filter` to get a search box above the block; typing it re-filters the block without editing the code block or the note.
 
 **Powerful filter DSL** — Boolean logic (`AND`, `OR`, `NOT`), text matching, tag matching, regex, and frontmatter property comparisons with full numeric/date operator support (`>`, `<`, `>=`, `<=`, `!=`).
 

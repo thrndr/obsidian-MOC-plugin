@@ -34,7 +34,7 @@ without writing a single line of YAML manually.
 | [[11 - Copy Bake and live refresh]] | Toolbar buttons, auto-refresh |
 | [[12 - Separators and dynamic parameters]] | \`blockSeparator\`, \`noteSeparator\`, \`{{this.folder}}\` |
 | [[13 - Multiple elements]] | \`element: [Task, Blockquote]\`, overlap rules |
-| [[14 - Live query]] | \`{query}\` placeholder, live search box |
+| [[14 - Live query]] | \`{{query}}\` placeholder, blank \`has_tag("")\`/\`matches("")\`, live search box |
 `,
     },
 
@@ -710,40 +710,57 @@ excludeFolder: ${SHOWCASE_FOLDER}/data/exclude-me
         path: `${SHOWCASE_FOLDER}/14 - Live query.md`,
         content: `# 14 — Live query
 
-A \`filter\` can contain the special \`{query}\` placeholder — a single-brace
-token, distinct from the double-brace \`{{this.*}}\` parameters. When present,
-the block gets a search box **above** it (always visible, no hover needed).
-Typing there re-filters the block live, without editing the code block.
+A \`filter\` can ask for a value typed live by the reader, in one of two ways:
+the \`{{query}}\` placeholder, or a **blank** \`has_tag("")\` / \`matches("")\`.
+Either one makes the block render a search box **above** it (always visible,
+no hover needed). Typing there re-filters the block live, without editing the
+code block. Before anything is typed, the block shows a prompt instead of
+running the filter.
 
-## Search across action items
+## The {{query}} placeholder
 
 \`\`\`moc
 folder: ${SHOWCASE_FOLDER}/data
 element: List
-filter: contains("{query}")
+filter: contains("{{query}}")
 recursive: true
 excludeFolder: ${SHOWCASE_FOLDER}/data/exclude-me
 \`\`\`
 
 **Try it:** type \`budget\`, then \`archive\`, then clear the box.
 
+## A blank has_tag("") — fill in the tag live
+
+Leave \`has_tag("")\` empty and the typed text becomes the tag to search for
+(no need to type \`{{query}}\` yourself):
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: List
+filter: has_tag("")
+recursive: true
+\`\`\`
+
+**Try it:** type \`project\`, then \`meeting\`.
+
 ## Combine it with the rest of the filter DSL
 
-\`{query}\` is just another value — combine it with tags, booleans, and other
+\`{{query}}\` is just another value — combine it with tags, booleans, and other
 primitives:
 
 \`\`\`moc
 folder: ${SHOWCASE_FOLDER}/data
 element: Task
-filter: is_incomplete() AND contains("{query}")
+filter: is_incomplete() AND contains("{{query}}")
 recursive: true
 \`\`\`
 
 **What to notice:**
-- Before you type anything, \`{query}\` expands to an empty string, so \`contains("{query}")\` matches everything.
-- \`{query}\` only works inside \`filter\`, not \`folder\`.
-- The typed value isn't saved with the note — it resets when you reopen it. Use **Bake** to freeze the currently filtered result.
-- **Copy** and **Bake** both use whatever is currently typed in the box.
+- Until you type something, the block shows "Type a tag or phrase above to search." — it does not run the filter unfilled.
+- The typed value is JSON-quoted before it fills \`has_tag("")\`/\`matches("")\`, so quotes you type can't break the filter.
+- \`{{query}}\`/blank primitives only work inside \`filter\`, not \`folder\`.
+- The typed value isn't saved with the note — it resets when you reopen it.
+- **Copy** and **Bake** both use whatever is currently typed in the box, and decline with a notice if the box is still empty.
 `,
     },
 ];

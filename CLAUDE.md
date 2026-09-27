@@ -12,7 +12,7 @@ See [AGENTS.md](AGENTS.md) for general Obsidian plugin conventions (build, lint,
 ## Architecture
 
 - `src/main.ts`: plugin lifecycle; registers the `moc` code block processor (config parsed with `parseYaml`) and commands.
-- `src/moc.ts`: filter DSL (tokenizer, parser, evaluator), `generateMocMarkdown` (file selection, sorting, extraction, `applyFnR`, `template`, grouping, rendering; takes an optional `runtimeQuery` argument, see Live query below), `processMocBlock` (toolbar: Copy/Bake, plus the live query search box) and `MocRenderChild` (live refresh, holds the in-memory `queryValue`).
+- `src/moc.ts`: filter DSL (tokenizer, parser, evaluator), `generateMocMarkdown` (file selection, sorting, extraction, `applyFnR`, `template`, grouping, rendering — its `config` is expected to already have any live query filled in, see Live query below), `processMocBlock` (toolbar: Copy/Bake, plus the live query search box) and `MocRenderChild` (live refresh, holds the in-memory `queryText`).
 - `src/extractors/`: element extraction, one module per kind.
   - `types.ts`: `ElementType`, `VALID_ELEMENTS`, `RawBlock`, `ExtractContext` (filter and tag helpers are injected to avoid circular imports).
   - `list.ts` (List/Task), `heading.ts`, `section.ts` (Paragraph/Blockquote).
@@ -31,13 +31,15 @@ See [AGENTS.md](AGENTS.md) for general Obsidian plugin conventions (build, lint,
 
 ## Live query (feature)
 
-`filter` may contain the single-brace `{query}` placeholder (distinct from the double-brace `{{this.*}}` dynamic parameters, which are expanded once from the note's own context). `configWantsQuery(config)` detects it; `expandQuery(text, query)` does the substitution.
+`filter` can ask for a value typed live by the reader, in one of two ways: the `{{query}}` placeholder, or a **blank** `has_tag("")`/`matches("")` (left empty on purpose so the typed text fills it in). `configWantsQuery(config)` detects either form; `applyQuery(config, queryText)` returns a new config with the value filled in (a no-op, returning `config` unchanged, while `queryText` is empty/blank — this is deliberate: it lets `configWantsQuery` still see the unfilled placeholder and show the prompt below, and lets `applyFnR`/output stay untouched until there's something to filter on). `generateMocMarkdown` itself is unchanged — the caller is expected to call `applyQuery` first (this is a config *preprocessing* step, not a parameter threaded through `generateMocMarkdown`).
 
-- `processMocBlock` renders an always-visible search box (`.moc-query-bar` / `.moc-query-input`) above the block, *outside* `.moc-toolbar`, when `configWantsQuery(config)` is true — the toolbar itself only appears on hover, which would be wrong for something the user needs to interact with.
-- The typed value lives only on `MocRenderChild.queryValue` (in memory, not persisted); typing calls `updateQueryDebounced()` (~300 ms) which re-renders via `generateMocMarkdown(config, app, sourcePath, settings, queryValue)`.
-- Before anything is typed, `{query}` expands to `''`, so e.g. `contains("{query}")` matches everything.
-- Copy and Bake both read the live `queryValue` at click time, so Bake freezes whatever is currently filtered.
-- `{query}` is only expanded in `filter`, not in `folder`.
+- `processMocBlock` renders an always-visible search box (`.moc-query-bar` / `.moc-query-input`) above the block, *outside* `.moc-toolbar`, when `configWantsQuery(config)` is true — the toolbar itself only appears on hover, which would be wrong for something the user needs to interact with. The box is `type="search"`, no label; the reference build this was reverse-engineered from uses no `aria-label` either.
+- The typed value lives only on `MocRenderChild.queryText` (in memory, not persisted). Typing calls `setQuery(value)`, which debounces (~300 ms, `updateDebouncedQuery`) into a `renderMoc()`.
+- `renderMoc()` special-cases the empty state: if `configWantsQuery(this.config)` is true and `queryText` is blank, it shows `QUERY_EMPTY_STATE_MESSAGE` ("Type a tag or phrase above to search.") and returns *without* calling `generateMocMarkdown` at all — an unfilled `{{query}}` is otherwise treated as a literal string by the filter DSL (harmless, but pointless) rather than a parse error, so this early return is the only thing standing between "nothing typed yet" and "silently searches for the literal text `{{query}}`".
+- Copy and Bake call `applyQuery(config, childComponent.queryText)` before `generateMocMarkdown`, and refuse with a `Notice` ("Type a query first") while the query is empty — **this is a deliberate deviation from the reference build**, which passes the raw, unfilled `config` to Copy/Bake regardless of what's typed (i.e. ignores the live query there entirely). Confirmed with the user on 2026-09-27; don't revert without checking.
+- `{{query}}`/blank-primitive filling only applies inside `filter`, not in `folder`.
+
+The reference bundle this was checked against lives in `dynamic_query/` (untracked, not part of plugin source — it's an installed build someone dropped in for comparison, not a template to copy wholesale). Before trusting anything found there again, diff it against the current build (`main.js`/`styles.css`/`manifest.json`) first — a copy that is byte-identical to this repo's own output means it just doesn't contain what's being asked about, not that the feature has no reference (this happened once; see the `ask-before-guessing-on-inconsistent-reference` memory).
 
 ## Project rules
 

@@ -41,24 +41,28 @@
 }
 
 .moc-query-bar {
-    display: flex;
-    margin-bottom: 6px;
+    margin: 0 0 8px 6px;
 }
 
-.moc-query-input {
+input.moc-query-input {
     width: 100%;
-    max-width: 320px;
-    padding: 4px 8px;
-    font-size: var(--font-ui-small);
+    max-width: 420px;
+    padding: 8px 12px;
+    border-radius: 8px;
     border: 1px solid var(--background-modifier-border);
-    border-radius: var(--radius-s);
-    background-color: var(--background-primary);
+    background: var(--background-primary);
     color: var(--text-normal);
+    font-size: var(--font-ui-medium);
 }
 
-.moc-query-input:focus {
+input.moc-query-input:focus {
+    outline: none;
     border-color: var(--interactive-accent);
     box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+input.moc-query-input::placeholder {
+    color: var(--text-muted);
 }
 
 .moc-toolbar {

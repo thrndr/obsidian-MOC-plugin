@@ -149,7 +149,7 @@ Show all tasks in `Projects/`, with a search box above the block so anyone can n
 ```moc
 folder: Projects
 element: Task
-filter: contains("{query}")
+filter: contains("{{query}}")
 recursive: true
 ```
 ````
