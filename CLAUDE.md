@@ -1,6 +1,6 @@
 # Maps of Content (Obsidian plugin)
 
-See [AGENTS.md](AGENTS.md) for general Obsidian plugin conventions (build, lint, manifest, releasing). (As of 2026-09-27, `AGENTS.md` is no longer present in this repo; the conventions it described — npm/esbuild, `src/` layout, manifest rules — still hold unless code says otherwise.)
+See [AGENTS.md](AGENTS.md) for general Obsidian plugin conventions (build, lint, manifest, releasing).
 
 ## Commands
 
