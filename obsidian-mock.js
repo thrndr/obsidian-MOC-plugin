@@ -7,3 +7,6 @@ export class MarkdownPostProcessorContext {}
 export class App {}
 export const debounce = (func) => func;
 export class TAbstractFile {}
+export const setIcon = () => {};
+export const Keymap = { isModEvent: () => false };
+export class TFolder {}
