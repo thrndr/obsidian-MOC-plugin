@@ -1,12 +1,12 @@
 import assert from 'node:assert';
 import { test, describe } from 'node:test';
-import { App, TFile } from 'obsidian';
+import { App, TFile, TFolder } from 'obsidian';
 import { CachedMetadata } from 'obsidian';
 import { extractElements, mergeBlocks, normalizeElements, ElementType, RawBlock } from '../extractors';
 import { generateMocMarkdown, evaluateFilter, extractTags, parseFilter } from '../moc';
 import type { MOCPluginSettings } from '../settings';
 
-const DEFAULT_SETTINGS: MOCPluginSettings = { rules: [], templateFolder: '' };
+const DEFAULT_SETTINGS: MOCPluginSettings = { rules: [], templateFolder: '', interactiveTasks: true, showJumpToSource: true };
 
 const pos = (start: number, end: number = start) => ({
     start: { line: start, col: 0, offset: 0 },
@@ -70,7 +70,7 @@ function fakeApp(firstHeading: string): App {
     });
     return {
         vault: {
-            getAbstractFileByPath: () => null,
+            getAbstractFileByPath: (path: string) => (path === 'Notes' ? Object.assign(new TFolder(), { path: 'Notes', name: 'Notes' }) : null),
             getMarkdownFiles: () => [file],
             cachedRead: async () => lines.join('\n'),
         },
@@ -159,6 +159,21 @@ void describe('generateMocMarkdown with multiple elements', () => {
     void test('blank line is forced between blocks of different types', async () => {
         const result = await generateMocMarkdown({ ...base, element: ['List', 'Paragraph'] }, fakeApp('Intro'), 'x.md', DEFAULT_SETTINGS);
         assert.ok(result.markdownText?.includes('- item launch B\n\nParagraph launch text'));
+    });
+
+    void test('every combined block keeps the source line jump-to-source needs', async () => {
+        const result = await generateMocMarkdown({ ...base, element: ['List', 'Paragraph'] }, fakeApp('Intro'), 'x.md', DEFAULT_SETTINGS);
+        const refs = (result.segments || []).filter(s => s.ref).map(s => s.ref!.line);
+        assert.deepStrictEqual(refs, [2, 3, 5]);
+    });
+
+    void test('tasks inside combined output still point back at their source lines', async () => {
+        const result = await generateMocMarkdown({ ...base, element: ['Task', 'Paragraph'] }, fakeApp('Intro'), 'x.md', DEFAULT_SETTINGS);
+        assert.deepStrictEqual(
+            result.taskRefs?.map(ref => [ref.line, ref.sourceText]),
+            [[2, '- [ ] task launch A']]
+        );
+        assert.strictEqual(result.tasksTransformed, false);
     });
 
     void test('showCount counts every combined block once', async () => {

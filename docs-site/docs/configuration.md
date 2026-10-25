@@ -27,6 +27,7 @@ recursive: true
 The folder path relative to the vault root where the plugin will search for markdown notes.
 - *Examples*: `Diary`, `Projects/Marketing`, or `""` (empty string to search the entire vault).
 - Supports dynamic parameters: `{{this.filename}}`, `{{this.folder}}`, `{{this.path}}` (see [Dynamic Parameters](#dynamic-parameters)).
+- If the folder does not exist, the block shows an error saying so. Renaming or moving a folder does not update `moc` blocks that point at it, so update `folder` to the new path.
 
 ### `element` (Required)
 The specific markdown element to extract from matching notes. Must be one of the following:
@@ -117,20 +118,49 @@ Sorts the matching source notes before processing and extracting elements.
 
 ---
 
-### `limit` (Optional)
-Limits the maximum number of markdown files processed. Must be a positive integer.
-- *Example*: `limit: 10`
+### `fileLimit` (Optional)
+Limits the maximum number of markdown files scanned. Must be a positive integer. This is the only limit that reduces work: files beyond it are never read.
+- *Example*: `fileLimit: 10`
 
 ---
 
-### `offset` (Optional)
-Skips the specified number of files at the start of the (sorted) file list before processing. Must be a non-negative integer. Use together with `limit` to paginate results.
-- *Example*: `offset: 5` (skip the first 5 files, then apply `limit`)
+### `fileOffset` (Optional)
+Skips the specified number of files at the start of the (sorted) file list before scanning. Must be a non-negative integer. Use with `fileLimit` to page through notes.
+- *Example*: `fileOffset: 5`
+
+---
+
+### `blockLimit` (Optional)
+Limits the maximum number of matched elements shown in total, across all files. Must be a positive integer.
+
+This is usually what you want. `fileLimit: 20` means "look at 20 notes"; `blockLimit: 20` means "show me 20 results".
+- *Example*: `blockLimit: 20`
+
+---
+
+### `blockOffset` (Optional)
+Skips the specified number of matched elements before showing results. Must be a non-negative integer. Pair it with `blockLimit` to paginate results rather than files.
+- *Example*: `blockOffset: 20` with `blockLimit: 20` shows results 21–40.
+
+---
+
+### `blocksPerFile` (Optional)
+Limits how many matched elements are taken from any single note, keeping the first ones in document order. Must be a positive integer.
+
+Use it alongside `blockLimit` so that one busy note cannot fill the whole result window and hide every other note.
+- *Example*: `blocksPerFile: 3`
+
+---
+
+### `limit` / `offset` (Deprecated)
+`limit` and `offset` are the original names for `fileLimit` and `fileOffset` and continue to work unchanged. Prefer the explicit names in new blocks — `limit` counts *files*, which is easy to misread as counting results. If both are given, the explicit key wins.
 
 ---
 
 ### `showCount` (Optional)
 When set to `true`, appends a result count summary at the bottom of the MOC block (e.g. `3 results in 2 files`). When `groupBy` is active, each group heading also shows the number of elements in that group.
+
+If `blockLimit`, `blockOffset` or `blocksPerFile` trimmed the results, the summary reports both numbers (e.g. `20 of 137 results in 8 files`) so a limited view never understates the total.
 - **Values**: `true` or `false` (defaults to `false`).
 - *Example*: `showCount: true`
 
@@ -160,6 +190,8 @@ Templates are resolved against the **Template folder** configured in **Settings 
 2. Create a note inside that folder whose *content* is the format string, using handlebars-style `{{placeholder}}` syntax — for example a note named `bullet-link.md` containing `- {{content}} — [[{{path}}|{{file}}]]`.
 3. Reference the note's basename (without `.md`) in the `template` key: `template: bullet-link`.
 
+Editing a template note refreshes every block that uses it, even though the template folder is usually outside the block's `folder`.
+
 Available placeholders (used inside the template note's content):
 
 | Placeholder | Value |
@@ -173,6 +205,8 @@ Available placeholders (used inside the template note's content):
 
 ---
 
+> **Note**: If a template rewrites the matched text, task checkboxes in the output render read-only. See [Interactive tasks](./toolbar.md#interactive-tasks).
+
 ### `applyFnR` (Optional)
 Applies reusable Find & Replace rules defined in the plugin's settings to the matched block contents. Can be a single rule name string or a JSON array of rule names. If an array is provided, the rules are applied sequentially in the specified order.
 - **Format**: `string` or `string[]`
@@ -180,6 +214,8 @@ Applies reusable Find & Replace rules defined in the plugin's settings to the ma
 - *Example (chain)*: `applyFnR: ["strip-comments", "clean-headers"]`
 
 ---
+
+> **Note**: If a rule rewrites the matched text, task checkboxes in the output render read-only. See [Interactive tasks](./toolbar.md#interactive-tasks).
 
 ### `blockSeparator` (Optional)
 Defines the separator rendered between different matched blocks extracted from the **same note**.

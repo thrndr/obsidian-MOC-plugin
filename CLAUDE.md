@@ -12,13 +12,14 @@ See [AGENTS.md](AGENTS.md) for general Obsidian plugin conventions (build, lint,
 ## Architecture
 
 - `src/main.ts`: plugin lifecycle; registers the `moc` code block processor (config parsed with `parseYaml`) and commands.
-- `src/moc.ts`: filter DSL (tokenizer, parser, evaluator), `generateMocMarkdown` (file selection, sorting, extraction, `applyFnR`, `template`, grouping, rendering — its `config` is expected to already have any live query filled in, see Live query below), `processMocBlock` (toolbar: Copy/Bake, plus the live query search box) and `MocRenderChild` (live refresh, holds the in-memory `queryText`).
+- `src/moc.ts`: filter DSL (tokenizer, parser, evaluator), `generateMocMarkdown` (file selection, sorting, extraction, limit windows, `applyFnR`, `template`, grouping, rendering into `segments` — its `config` is expected to already have any live query filled in, see Live query below), `processMocBlock` (toolbar: Copy/Bake, plus the live query search box) and `MocRenderChild` (live refresh via `MocScope`/`isPathInScope`, per-block rendering with jump-to-source, task write-back, and the in-memory `queryText`).
 - `src/extractors/`: element extraction, one module per kind.
   - `types.ts`: `ElementType`, `VALID_ELEMENTS`, `RawBlock`, `ExtractContext` (filter and tag helpers are injected to avoid circular imports).
   - `list.ts` (List/Task), `heading.ts`, `section.ts` (Paragraph/Blockquote).
   - `index.ts`: `normalizeElements`, `mergeBlocks`, `extractElements`.
+  - Each `RawBlock` carries `startLine`/`endLine`. `generateMocMarkdown` turns those into the `MatchedBlock.startLine` used by jump-to-source (`BlockRef`) and into `taskLines` via `collectTaskLines`, so extractors stay unaware of both features.
 - `src/ui/`: creation wizard (`moc-wizard.ts`), filter tree builder, autocomplete suggesters.
-- `src/commands/create-showcase.ts`: generates the demo vault folder; add a note here for every new feature.
+- `src/commands/create-showcase.ts`: generates the demo vault folder; add a note here for every new feature. Notes 13-15 cover interactive tasks, jump to source and renames/moves; 16-17 cover multiple elements and the live query.
 
 ## Multiple elements (feature)
 

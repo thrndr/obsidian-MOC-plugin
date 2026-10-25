@@ -1,10 +1,10 @@
 import assert from 'node:assert';
 import { test, describe } from 'node:test';
-import { App, TFile, CachedMetadata } from 'obsidian';
+import { App, TFile, TFolder, CachedMetadata } from 'obsidian';
 import { applyQuery, configWantsQuery, generateMocMarkdown } from '../moc';
 import type { MOCPluginSettings } from '../settings';
 
-const DEFAULT_SETTINGS: MOCPluginSettings = { rules: [], templateFolder: '' };
+const DEFAULT_SETTINGS: MOCPluginSettings = { rules: [], templateFolder: '', interactiveTasks: true, showJumpToSource: true };
 
 void describe('configWantsQuery', () => {
     void test('detects the {{query}} placeholder in filter', () => {
@@ -74,7 +74,7 @@ function fakeApp(lines: string[]): App {
 
     return {
         vault: {
-            getAbstractFileByPath: () => null,
+            getAbstractFileByPath: (path: string) => (path === 'Notes' ? Object.assign(new TFolder(), { path: 'Notes', name: 'Notes' }) : null),
             getMarkdownFiles: () => [file],
             cachedRead: async () => lines.join('\n'),
         },

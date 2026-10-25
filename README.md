@@ -10,6 +10,10 @@ Dynamically generate **Map of Content (MOC)** indexes by extracting matching ele
 
 **Live, auto-updating indexes** — `moc` blocks re-render automatically when files in the watched folder change. No refreshing needed.
 
+**Interactive tasks** — Tick a task checkbox in a rendered `moc` block and it updates in its source note, guarded against writing over newer edits.
+
+**Jump to source** — Every matched block has a button that opens its source note at the exact line it came from.
+
 **Multiple elements per block** — Combine lists, tasks, headings, paragraphs and blockquotes in one block with `element: [Task, Blockquote]`; results come back in document order without duplicates.
 
 **Live query** — Put `{{query}}` (or a blank `has_tag("")`/`matches("")`) in a `filter` to get a search box above the block; typing it re-filters the block without editing the code block or the note.
@@ -18,7 +22,7 @@ Dynamically generate **Map of Content (MOC)** indexes by extracting matching ele
 
 **MOC Creation Wizard** — Generate `moc` blocks visually from the Command Palette. No YAML required.
 
-**Flexible output shaping** — Group by folder, tag, date, or any frontmatter property. Sort, limit, paginate with `offset`, and count results with `showCount`.
+**Flexible output shaping** — Group by folder, tag, date, or any frontmatter property. Sort, and limit by notes scanned (`fileLimit`), total results (`blockLimit`) or results per note (`blocksPerFile`), with matching offsets for pagination.
 
 **Templates** — Format each matched element using a reusable template note with `{{content}}`, `{{file}}`, `{{path}}`, `{{link}}` placeholders.
 

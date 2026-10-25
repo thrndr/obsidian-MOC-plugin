@@ -50,8 +50,58 @@ The **Bake** button permanently replaces the dynamic `moc` code block with its r
 
 ## Live Auto-refresh
 
-MOC blocks **automatically re-render** whenever a Markdown file in the watched folder is created, modified, or deleted. You do not need to close and reopen the note.
+MOC blocks **automatically re-render** whenever a Markdown file in the watched folder is created, modified, deleted, renamed, or moved. You do not need to close and reopen the note.
 
 The refresh is **debounced by 500 ms** to avoid excessive re-renders during rapid consecutive saves.
 
-The watched folder is determined by the `folder` and `recursive` settings of each individual block. Only file changes within the relevant folder (and subfolders, if `recursive: true`) trigger a refresh.
+The watched folder is determined by the `folder` and `recursive` settings of each individual block. Only file changes within the relevant folder (and subfolders, if `recursive: true`) trigger a refresh, and changes inside an `excludeFolder` or to an `excludeFile` are ignored.
+
+- **Renames and moves** refresh the block when the note moves into the watched folder, out of it, or is renamed within it, so links and file headings never go stale.
+- **Template edits** refresh every block that uses a `template`, even though the template folder is usually outside the watched folder.
+- **Renaming the watched folder** shows an error that the folder no longer exists, rather than an empty result. Update the block's `folder` to the new name.
+- **Renaming the note containing the block** re-resolves `{{this.filename}}`, `{{this.folder}}` and `{{this.path}}` against the new name.
+
+---
+
+## Interactive tasks
+
+Task checkboxes inside a rendered MOC block are **live**. Ticking one writes the change straight back to the note the task came from, so you can work through an aggregated task list without opening each source note.
+
+```moc
+folder: Projects
+element: Task
+filter: is_incomplete()
+recursive: true
+```
+
+Click a checkbox in the block above and the matching `- [ ]` becomes `- [x]` in its original note. Because the block also auto-refreshes on file changes, a task filtered by `is_incomplete()` disappears from the list moments after you complete it.
+
+This works for tasks anywhere in the output, including tasks that appear inside an extracted `Heading` or `Blockquote` block, nested subtasks, ordered-list tasks (`1. [ ]`), and tasks inside callouts.
+
+### Safety
+
+Before writing, the plugin checks that the target line still reads exactly as it did when the block was rendered. If the note changed in the meantime — an edit in another pane, or a sync from another device — the write is skipped, you get a notice, and the block refreshes to show the current state. A stale view can never overwrite newer content.
+
+### When tasks are read-only
+
+Checkboxes are shown but disabled when `template` or `applyFnR` actually rewrites the matched text. Rewriting can add or remove checkboxes, which breaks the link between a rendered checkbox and its source line.
+
+This is based on whether the text really changed, not merely on the option being present. An `applyFnR` naming a rule that does not exist, or a rule whose pattern matches nothing, leaves the output untouched — so the tasks stay clickable. Remove the option if you need tasks to be editable in a block that does transform its output.
+
+### Turning it off
+
+Interactive tasks are enabled by default. To disable them, go to **Settings → Maps of Content → Tasks** and turn off **Interactive tasks**. Checkboxes then render exactly as they did before, with no write-back.
+
+---
+
+## Jump to source
+
+Every matched block carries its own **jump-to-source** button, revealed in the block's top-right corner when you hover it. Clicking it opens the source note scrolled to the exact line the block starts at — not just the top of the file.
+
+Hold `Ctrl` (`Cmd` on macOS) while clicking to open the source in a new pane instead of the current one, the same as any other link in Obsidian.
+
+This is per *block*, not per file. If one note contributed five matched tasks, each of the five has its own button pointing at its own line.
+
+### Turning it off
+
+Jump buttons are enabled by default. To hide them, go to **Settings → Maps of Content → Tasks** and turn off **Jump to source**.

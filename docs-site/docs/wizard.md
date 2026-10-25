@@ -68,13 +68,18 @@ Group results under subheadings:
 ### 9. Sort
 Sort the scanned files before extracting elements. Select a **sort field** (`Name`, `Creation time`, `Modification time`) and **direction** (`Ascending` or `Descending`).
 
-### 10. Limit
-Enter a positive integer to limit the maximum number of files processed.
-- *Example*: `10`
+### 10. Limits
 
-### 11. Offset
-Enter a non-negative integer to skip that many files from the start of the (sorted) list. Use together with **Limit** for pagination.
-- *Example*: `5`
+Three separate fields, because files and results are different units:
+
+- **File limit** — maximum notes to scan (`fileLimit`).
+- **Result limit** — maximum matched elements to show in total (`blockLimit`). This is usually the one you want.
+- **Max per note** — maximum matched elements taken from any single note (`blocksPerFile`), so one busy note cannot fill the whole result window.
+
+### 11. Offsets
+
+- **File offset** — skip this many notes before scanning (`fileOffset`).
+- **Result offset** — skip this many matched elements before showing results (`blockOffset`). Pair with **Result limit** to paginate results.
 
 ### 12. Block separator
 Select the spacing or divider format to apply between matching blocks extracted from the **same note**:
@@ -102,6 +107,12 @@ Manage a sequence of Find & Replace text transformations to execute on the extra
 - **Remove rules**: Click the trash icon button next to a rule to remove it from the chain.
 
 ---
+
+### Task read-only hint
+
+When **Element** is set to `Task` or `List` and you add a **Template** or a **Find and replace** rule, the wizard shows an inline hint that tasks in the resulting block will be read-only. Reshaping the output breaks the link between a rendered checkbox and its source line — see [Interactive tasks](./toolbar.md#interactive-tasks).
+
+The wizard has no options for interactive tasks or jump to source themselves. Both are plugin-wide settings rather than block options, so they apply to every block and are configured under **Settings → Maps of Content → Tasks**.
 
 ## Inserting the Block
 

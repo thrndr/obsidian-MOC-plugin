@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { test, describe } from 'node:test';
-import { parseFilter, evaluateFilter, evaluateFrontmatter, applyFindReplace, applyTemplate } from '../moc';
+import { parseFilter, evaluateFilter, evaluateFrontmatter, applyFindReplace, applyTemplate, toggleTaskMarker, isTaskLineChecked, buildSegments, resolveLimitOptions, resolveScope, isPathInScope, isPathInTemplateFolder } from '../moc';
 import { TFile } from 'obsidian';
 
 void describe('MOC Filter - Primitive Filters', () => {
@@ -357,5 +357,304 @@ void describe('MOC Template', () => {
             applyTemplate(text, '{{unknown}} {{content}}', mockFile),
             '{{unknown}} Sample content'
         );
+    });
+});
+
+void describe('MOC Tasks - toggleTaskMarker', () => {
+    void test('unchecked to checked', () => {
+        assert.strictEqual(toggleTaskMarker('- [ ] Buy milk'), '- [x] Buy milk');
+    });
+
+    void test('checked to unchecked', () => {
+        assert.strictEqual(toggleTaskMarker('- [x] Buy milk'), '- [ ] Buy milk');
+    });
+
+    void test('preserves indentation', () => {
+        assert.strictEqual(toggleTaskMarker('    - [ ] Nested'), '    - [x] Nested');
+        assert.strictEqual(toggleTaskMarker('\t- [x] Tabbed'), '\t- [ ] Tabbed');
+    });
+
+    void test('preserves alternative list markers', () => {
+        assert.strictEqual(toggleTaskMarker('* [ ] Star'), '* [x] Star');
+        assert.strictEqual(toggleTaskMarker('+ [ ] Plus'), '+ [x] Plus');
+        assert.strictEqual(toggleTaskMarker('1. [ ] Ordered'), '1. [x] Ordered');
+        assert.strictEqual(toggleTaskMarker('2) [ ] Ordered paren'), '2) [x] Ordered paren');
+    });
+
+    void test('preserves blockquote and callout prefixes', () => {
+        assert.strictEqual(toggleTaskMarker('> - [ ] Quoted'), '> - [x] Quoted');
+        assert.strictEqual(toggleTaskMarker('> > - [x] Nested quote'), '> > - [ ] Nested quote');
+    });
+
+    void test('preserves trailing content, tags and links', () => {
+        assert.strictEqual(
+            toggleTaskMarker('- [ ] Ship #todo [[Note]] due 2026-01-01'),
+            '- [x] Ship #todo [[Note]] due 2026-01-01'
+        );
+    });
+
+    void test('custom states collapse to unchecked', () => {
+        assert.strictEqual(toggleTaskMarker('- [/] In progress'), '- [ ] In progress');
+        assert.strictEqual(toggleTaskMarker('- [-] Cancelled'), '- [ ] Cancelled');
+    });
+
+    void test('returns null for non-task lines', () => {
+        assert.strictEqual(toggleTaskMarker('- Just a list item'), null);
+        assert.strictEqual(toggleTaskMarker('# A heading'), null);
+        assert.strictEqual(toggleTaskMarker(''), null);
+        assert.strictEqual(toggleTaskMarker('Some [x] prose'), null);
+    });
+
+    void test('round trip is stable', () => {
+        const original = '  - [ ] Round trip #tag';
+        const toggled = toggleTaskMarker(original);
+        assert.ok(toggled);
+        assert.strictEqual(toggleTaskMarker(toggled), original);
+    });
+});
+
+void describe('MOC Tasks - isTaskLineChecked', () => {
+    void test('unchecked tasks', () => {
+        assert.strictEqual(isTaskLineChecked('- [ ] Open'), false);
+        assert.strictEqual(isTaskLineChecked('  > - [ ] Quoted open'), false);
+    });
+
+    void test('checked and custom states count as checked', () => {
+        assert.strictEqual(isTaskLineChecked('- [x] Done'), true);
+        assert.strictEqual(isTaskLineChecked('- [X] Done upper'), true);
+        assert.strictEqual(isTaskLineChecked('- [/] In progress'), true);
+    });
+
+    void test('non-task lines', () => {
+        assert.strictEqual(isTaskLineChecked('- Plain item'), null);
+        assert.strictEqual(isTaskLineChecked('Prose'), null);
+    });
+
+    void test('agrees with toggleTaskMarker', () => {
+        for (const line of ['- [ ] a', '- [x] b', '\t1. [ ] c', '> - [/] d']) {
+            const toggled = toggleTaskMarker(line);
+            assert.ok(toggled);
+            assert.strictEqual(isTaskLineChecked(toggled), !isTaskLineChecked(line));
+        }
+    });
+});
+
+void describe('MOC Segments - buildSegments', () => {
+    const fileA = new TFile();
+    fileA.path = 'notes/A.md';
+    const refA = { file: fileA, line: 3 };
+    const refB = { file: fileA, line: 9 };
+
+    void test('splits surrounding markdown away from blocks', () => {
+        const lines = ['### Heading', '', '- item one', '', '- item two', ''];
+        const segments = buildSegments(lines, [
+            { ref: refA, start: 2, end: 2 },
+            { ref: refB, start: 4, end: 4 }
+        ]);
+
+        assert.deepStrictEqual(segments.map(s => s.markdown), [
+            '### Heading\n',
+            '- item one',
+            '',
+            '- item two',
+            ''
+        ]);
+        assert.strictEqual(segments[1]?.ref, refA);
+        assert.strictEqual(segments[3]?.ref, refB);
+        assert.strictEqual(segments[0]?.ref, undefined);
+    });
+
+    void test('rejoining segments reproduces the flat output exactly', () => {
+        const lines = ['### Group (2)', '', '> quoted block', 'second line', '', '---', '', '- a task', ''];
+        const segments = buildSegments(lines, [
+            { ref: refA, start: 2, end: 3 },
+            { ref: refB, start: 7, end: 7 }
+        ]);
+        assert.strictEqual(segments.map(s => s.markdown).join('\n'), lines.join('\n'));
+    });
+
+    void test('handles a block spanning the entire output', () => {
+        const lines = ['- only block'];
+        const segments = buildSegments(lines, [{ ref: refA, start: 0, end: 0 }]);
+        assert.strictEqual(segments.length, 1);
+        assert.strictEqual(segments[0]?.ref, refA);
+        assert.strictEqual(segments.map(s => s.markdown).join('\n'), lines.join('\n'));
+    });
+
+    void test('multi-line blocks stay in one segment', () => {
+        const lines = ['## Section', 'body text', 'more body', ''];
+        const segments = buildSegments(lines, [{ ref: refA, start: 0, end: 2 }]);
+        assert.strictEqual(segments[0]?.markdown, '## Section\nbody text\nmore body');
+        assert.strictEqual(segments[0]?.ref, refA);
+        assert.strictEqual(segments.map(s => s.markdown).join('\n'), lines.join('\n'));
+    });
+
+    void test('no blocks yields a single plain segment', () => {
+        const lines = ['nothing', 'to see'];
+        const segments = buildSegments(lines, []);
+        assert.deepStrictEqual(segments, [{ markdown: 'nothing\nto see' }]);
+    });
+
+    void test('empty output yields no segments', () => {
+        assert.deepStrictEqual(buildSegments([], []), []);
+    });
+});
+
+void describe('MOC Limits - resolveLimitOptions', () => {
+    const base = { folder: 'x', element: 'Task', filter: 'is_incomplete()' };
+
+    void test('no limit options resolves to all undefined', () => {
+        const result = resolveLimitOptions({ ...base });
+        assert.strictEqual(result.error, undefined);
+        assert.deepStrictEqual(result.limits, {
+            fileLimit: undefined,
+            fileOffset: undefined,
+            blockLimit: undefined,
+            blockOffset: undefined,
+            blocksPerFile: undefined
+        });
+    });
+
+    void test('legacy limit and offset map onto the file window', () => {
+        const result = resolveLimitOptions({ ...base, limit: 10, offset: 5 });
+        assert.strictEqual(result.limits?.fileLimit, 10);
+        assert.strictEqual(result.limits?.fileOffset, 5);
+        assert.strictEqual(result.limits?.blockLimit, undefined);
+    });
+
+    void test('explicit file keys win over the deprecated aliases', () => {
+        const result = resolveLimitOptions({ ...base, limit: 10, fileLimit: 3, offset: 5, fileOffset: 1 });
+        assert.strictEqual(result.limits?.fileLimit, 3);
+        assert.strictEqual(result.limits?.fileOffset, 1);
+    });
+
+    void test('all five keys resolve independently', () => {
+        const result = resolveLimitOptions({
+            ...base, fileLimit: 4, fileOffset: 2, blockLimit: 20, blockOffset: 10, blocksPerFile: 3
+        });
+        assert.deepStrictEqual(result.limits, {
+            fileLimit: 4, fileOffset: 2, blockLimit: 20, blockOffset: 10, blocksPerFile: 3
+        });
+    });
+
+    void test('offsets of zero are preserved, not treated as absent', () => {
+        const result = resolveLimitOptions({ ...base, fileOffset: 0, blockOffset: 0 });
+        assert.strictEqual(result.limits?.fileOffset, 0);
+        assert.strictEqual(result.limits?.blockOffset, 0);
+    });
+
+    void test('limits must be positive integers', () => {
+        for (const key of ['fileLimit', 'blockLimit', 'blocksPerFile']) {
+            for (const bad of [0, -1, 2.5]) {
+                const result = resolveLimitOptions({ ...base, [key]: bad });
+                assert.ok(result.error, `${key}=${bad} should fail`);
+                assert.ok(result.error?.includes(key));
+                assert.strictEqual(result.limits, undefined);
+            }
+        }
+    });
+
+    void test('offsets must be non-negative integers', () => {
+        for (const key of ['fileOffset', 'blockOffset']) {
+            for (const bad of [-1, 1.5]) {
+                const result = resolveLimitOptions({ ...base, [key]: bad });
+                assert.ok(result.error, `${key}=${bad} should fail`);
+                assert.ok(result.error?.includes(key));
+            }
+            assert.strictEqual(resolveLimitOptions({ ...base, [key]: 0 }).error, undefined);
+        }
+    });
+
+    void test('non-numeric values are rejected', () => {
+        const result = resolveLimitOptions({ ...base, blockLimit: 'ten' } as never);
+        assert.ok(result.error?.includes('blockLimit'));
+    });
+
+    void test('the deprecated aliases keep their original looser validation', () => {
+        // limit historically accepted any positive number; that must not regress
+        // into an error for blocks written before the file/block split.
+        assert.strictEqual(resolveLimitOptions({ ...base, limit: 10.5 }).error, undefined);
+        assert.ok(resolveLimitOptions({ ...base, limit: 0 }).error);
+        assert.ok(resolveLimitOptions({ ...base, offset: -1 }).error);
+    });
+
+    void test('an alias is not validated when the explicit key overrides it', () => {
+        const result = resolveLimitOptions({ ...base, limit: 0, fileLimit: 5 });
+        assert.strictEqual(result.error, undefined);
+        assert.strictEqual(result.limits?.fileLimit, 5);
+    });
+});
+
+void describe('MOC Scope - isPathInScope', () => {
+    const scopeFor = (config: Record<string, unknown>) => resolveScope({ element: 'List', filter: 'contains("x")', ...config }, null);
+
+    void test('non-recursive scope only covers the folder itself', () => {
+        const scope = scopeFor({ folder: 'Projects' });
+        assert.strictEqual(isPathInScope('Projects/a.md', scope), true);
+        assert.strictEqual(isPathInScope('Projects/sub/a.md', scope), false);
+        assert.strictEqual(isPathInScope('Other/a.md', scope), false);
+        // A sibling folder sharing the prefix must not match
+        assert.strictEqual(isPathInScope('Projects-old/a.md', scope), false);
+    });
+
+    void test('recursive scope covers subfolders', () => {
+        const scope = scopeFor({ folder: 'Projects', recursive: true });
+        assert.strictEqual(isPathInScope('Projects/sub/deep/a.md', scope), true);
+        assert.strictEqual(isPathInScope('Projects-old/a.md', scope), false);
+    });
+
+    void test('vault root scope', () => {
+        assert.strictEqual(isPathInScope('a.md', scopeFor({ folder: '/' })), true);
+        assert.strictEqual(isPathInScope('sub/a.md', scopeFor({ folder: '/' })), false);
+        assert.strictEqual(isPathInScope('sub/a.md', scopeFor({ folder: '/', recursive: true })), true);
+    });
+
+    void test('folder paths are normalised', () => {
+        const scope = scopeFor({ folder: ' /Projects/ ' });
+        assert.strictEqual(isPathInScope('Projects/a.md', scope), true);
+    });
+
+    void test('excludeFolder removes the folder and its subfolders', () => {
+        const scope = scopeFor({ folder: 'Projects', recursive: true, excludeFolder: ['Projects/Archive'] });
+        assert.strictEqual(isPathInScope('Projects/a.md', scope), true);
+        assert.strictEqual(isPathInScope('Projects/Archive/a.md', scope), false);
+        assert.strictEqual(isPathInScope('Projects/Archive/2025/a.md', scope), false);
+        assert.strictEqual(isPathInScope('Projects/Archived/a.md', scope), true);
+    });
+
+    void test('excludeFile matches with or without the .md extension', () => {
+        const scope = scopeFor({ folder: 'Projects', excludeFile: ['Projects/index', 'Projects/readme.md'] });
+        assert.strictEqual(isPathInScope('Projects/index.md', scope), false);
+        assert.strictEqual(isPathInScope('Projects/readme.md', scope), false);
+        assert.strictEqual(isPathInScope('Projects/other.md', scope), true);
+    });
+
+    void test('exclusions accept a single string', () => {
+        const scope = scopeFor({ folder: 'Projects', recursive: true, excludeFolder: 'Projects/Archive', excludeFile: 'Projects/index' });
+        assert.strictEqual(isPathInScope('Projects/Archive/a.md', scope), false);
+        assert.strictEqual(isPathInScope('Projects/index.md', scope), false);
+    });
+
+    void test('a rename is caught from either end', () => {
+        // Moves are checked against both the old and new path; a note leaving
+        // the scope is only visible through its old path.
+        const scope = scopeFor({ folder: 'Projects' });
+        const oldPath = 'Projects/a.md';
+        const newPath = 'Archive/a.md';
+        assert.strictEqual(isPathInScope(newPath, scope), false);
+        assert.strictEqual(isPathInScope(oldPath, scope), true);
+    });
+});
+
+void describe('MOC Scope - isPathInTemplateFolder', () => {
+    void test('matches notes anywhere under the template folder', () => {
+        assert.strictEqual(isPathInTemplateFolder('Templates/card.md', 'Templates'), true);
+        assert.strictEqual(isPathInTemplateFolder('Templates/moc/card.md', '/Templates/'), true);
+        assert.strictEqual(isPathInTemplateFolder('Templates-old/card.md', 'Templates'), false);
+    });
+
+    void test('an unset template folder matches nothing', () => {
+        assert.strictEqual(isPathInTemplateFolder('card.md', ''), false);
+        assert.strictEqual(isPathInTemplateFolder('card.md', '  '), false);
     });
 });
