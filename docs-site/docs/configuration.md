@@ -37,9 +37,25 @@ The specific markdown element to extract from matching notes. Must be one of the
 - `Paragraph`: Markdown paragraph blocks.
 - `Blockquote`: Markdown blockquotes.
 
+**Multiple elements.** Combine several types in one block with a YAML list (a comma-separated string such as `element: Task, Blockquote` also works). Names are case-sensitive and duplicates are ignored:
+
+```moc
+folder: Projects
+element: [Task, Blockquote]
+filter: is_incomplete() OR contains("#decision")
+```
+
+How combined elements behave:
+- **Order**: results appear in document order within each note, not grouped by type.
+- **Overlap**: if a matched block lies inside another matched block, only the outer block is kept. A matching `Heading` includes its whole section, so lists and paragraphs inside it are not repeated. `Task` is part of `List`, so `[Task, List]` never repeats a task.
+- **One filter, applied per type**: `Heading` is matched on the heading text only; the other types are matched on their full text. `is_completed()` and `is_incomplete()` match only tasks, so `NOT is_completed()` also matches every non-task element.
+- **Spacing**: blocks of different types are always separated by a blank line, even with `blockSeparator: none`, so a paragraph never merges into a preceding list.
+- **Compatibility**: a block using a list of elements is not understood by plugin versions before 1.5.0. A single `element: List` works everywhere.
+
 ### `filter` (Required)
 The matching condition applied to each candidate element. Supports both primitive functions and complex logical expressions.
 - Supports dynamic parameters: `{{this.filename}}`, `{{this.folder}}`, `{{this.path}}`.
+- Supports a live `{{query}}` placeholder (or a blank `has_tag("")`/`matches("")`), filled from a search box above the block. See [Live Query](#live-query) below.
 
 **Primitive condition functions:**
 
@@ -51,7 +67,7 @@ The matching condition applied to each candidate element. Supports both primitiv
   - `matches("regex_pattern")`: Evaluates the element using a regular expression match. Supports optional slash-delimited format with flags, e.g. `matches("/pattern/i")`.
 - **Tags**:
   - `has_tag("#tag")`: Evaluates if the element contains the specified hashtag (fully tag-aware, case-insensitive, and matches subtags like `#tag/subtag`).
-- **Tasks** (only when `element` is `Task` or `List`):
+- **Tasks** (only match tasks; the wizard offers them when `element` includes `Task` or `List`):
   - `is_completed()`: Matches completed tasks.
   - `is_incomplete()`: Matches incomplete tasks.
   
@@ -240,5 +256,41 @@ recursive: true
 ````
 
 ![Dynamic parameters usage](/img/Showcase_5.png)
+
+---
+
+## Live Query
+
+`{{this.*}}` parameters are expanded once, from the note the block lives in. `filter` can also ask for a **live** value, typed by whoever is reading the note, in one of two ways:
+
+- The `{{query}}` placeholder, filled in wherever it appears:
+
+  ````yaml
+  ```moc
+  folder: Diary
+  element: List
+  filter: contains("{{query}}")
+  recursive: true
+  ```
+  ````
+
+- A **blank** `has_tag("")` or `matches("")` — leave the argument empty and it is filled with the typed value (quoted safely, so quotes typed by the reader can't break the filter):
+
+  ````yaml
+  ```moc
+  folder: Diary
+  element: Task
+  filter: is_incomplete() AND has_tag("")
+  recursive: true
+  ```
+  ````
+
+Either form makes the block render a search box above it instead of its normal content. Typing there re-renders the block (debounced ~300 ms) with the placeholder filled in — no need to edit the code block. Before anything is typed, the block shows "Type a tag or phrase above to search." instead of running the filter.
+
+- It can appear more than once in the same filter, and combine with the rest of the filter DSL: `contains("{{query}}") AND has_tag("#project")`.
+- It only works inside `filter`; it is not expanded in `folder`.
+- **Copy** and **Bake** (see [Toolbar](toolbar.md)) use whatever is currently typed, so Bake freezes the currently filtered result into static Markdown. Neither does anything until something has been typed.
+- The typed value is **not saved** — it resets when the note is closed and reopened.
+- Combining it with **Live auto-refresh**: a vault change still re-renders the block, but reuses whatever query is currently typed.
 
 ---

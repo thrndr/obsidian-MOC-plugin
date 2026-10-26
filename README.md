@@ -14,6 +14,10 @@ Dynamically generate **Map of Content (MOC)** indexes by extracting matching ele
 
 **Jump to source** — Every matched block has a button that opens its source note at the exact line it came from.
 
+**Multiple elements per block** — Combine lists, tasks, headings, paragraphs and blockquotes in one block with `element: [Task, Blockquote]`; results come back in document order without duplicates.
+
+**Live query** — Put `{{query}}` (or a blank `has_tag("")`/`matches("")`) in a `filter` to get a search box above the block; typing it re-filters the block without editing the code block or the note.
+
 **Powerful filter DSL** — Boolean logic (`AND`, `OR`, `NOT`), text matching, tag matching, regex, and frontmatter property comparisons with full numeric/date operator support (`>`, `<`, `>=`, `<=`, `!=`).
 
 **MOC Creation Wizard** — Generate `moc` blocks visually from the Command Palette. No YAML required.

@@ -23,12 +23,14 @@ Specify the folder path in your vault where the plugin should search for notes.
 - Leave empty to scan the entire vault.
 
 ### 2. Element
-Select the markdown element type you want to extract:
+Tick one or more markdown element types to extract (at least one is required):
 - **List**: Bulleted/numbered list items.
 - **Task**: Checkbox task items.
 - **Heading**: Document headers (H1 to H6).
 - **Paragraph**: Standard text paragraphs.
 - **Blockquote**: Markdown blockquote segments.
+
+A single selection generates `element: Task`; several generate `element: [Task, Blockquote]`. See [Configuration](configuration.md#element-required) for how combined elements are ordered and de-duplicated.
 
 ### 3. Recursive
 Toggle this on to include notes in subfolders of the specified directory. If toggled off, only notes directly inside the specified folder are scanned.
@@ -47,7 +49,7 @@ The wizard features an interactive autocomplete suggester that activates as you 
 
 You can use primitive functions such as `contains("")`, `has_tag("")`, `is_completed()`, `properties( == "")`, and combine them using logical operators like `AND`, `OR`, and `NOT`.
 
-> **Note**: `is_completed()` and `is_incomplete()` are only suggested when **Element** is set to `Task` or `List`.
+> **Note**: `is_completed()` and `is_incomplete()` are only suggested when **Element** includes `Task` or `List`. They match tasks only.
 
 - *Example*: `contains("Meeting") AND NOT is_completed()`
 

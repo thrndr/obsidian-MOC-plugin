@@ -535,18 +535,18 @@ export class DynamicParameterSuggest extends AbstractInputSuggest<string> {
 
 export class FilterSuggest extends AbstractInputSuggest<string> {
     private inputEl: HTMLInputElement;
-    private getElement: () => string;
+    private getElements: () => string[];
     private getFolder: () => string;
 
     constructor(
         app: App,
         inputEl: HTMLInputElement,
-        getElement: () => string,
+        getElements: () => string[],
         getFolder: () => string
     ) {
         super(app, inputEl);
         this.inputEl = inputEl;
-        this.getElement = getElement;
+        this.getElements = getElements;
         this.getFolder = getFolder;
     }
 
@@ -581,7 +581,8 @@ export class FilterSuggest extends AbstractInputSuggest<string> {
         const wordMatch = before.match(/([a-zA-Z_]+)$/);
         const currentWord = wordMatch ? (wordMatch[1] ?? '') : '';
 
-        const isTaskOrList = this.getElement() === 'Task' || this.getElement() === 'List';
+        const elements = this.getElements();
+        const isTaskOrList = elements.includes('Task') || elements.includes('List');
         const propKeys = getFrontmatterKeys(this.app, this.getFolder());
 
         // Build properties() suggestions using real keys if available

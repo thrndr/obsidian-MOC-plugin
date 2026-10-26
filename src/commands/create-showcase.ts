@@ -36,6 +36,8 @@ without writing a single line of YAML manually.
 | [[13 - Interactive tasks]] | Ticking tasks in place, write-back safety |
 | [[14 - Jump to source]] | Per-block jump-to-source buttons |
 | [[15 - Renames and moves]] | Refresh on rename and move, template edits, missing folders |
+| [[16 - Multiple elements]] | \`element: [Task, Blockquote]\`, overlap rules |
+| [[17 - Live query]] | \`{{query}}\` placeholder, blank \`has_tag("")\`/\`matches("")\`, live search box |
 `,
     },
 
@@ -981,6 +983,112 @@ renaming it to \`Beta\` makes its block switch from the \`hosts/Alpha\` folder t
 - Renaming a folder counts as a move for every note inside it.
 - Refreshes are debounced, so moving many notes at once causes a single re-render.
 - Edits inside an \`excludeFolder\` or to an \`excludeFile\` don't trigger a refresh.
+`,
+    },
+    {
+        path: `${SHOWCASE_FOLDER}/16 - Multiple elements.md`,
+        content: `# 16 — Multiple elements
+
+\`element\` accepts a single type or a list of types. Results from every listed
+type are merged in **document order** per note.
+
+## Tasks and blockquotes together
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: [Task, Blockquote]
+filter: is_incomplete() OR contains("#decision")
+recursive: true
+\`\`\`
+
+## Lists and paragraphs together
+
+Blocks of different types are always separated by a blank line so a paragraph
+never merges into the list above it.
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: [List, Paragraph]
+filter: has_tag("project") OR contains("aligned")
+recursive: true
+excludeFolder: ${SHOWCASE_FOLDER}/data/exclude-me
+\`\`\`
+
+## Overlapping elements
+
+A \`Heading\` block contains its whole section. When the heading matches, list
+items and paragraphs inside that section are **not** repeated.
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: [Heading, List]
+filter: contains("Action items") OR has_tag("project")
+recursive: true
+excludeFolder: ${SHOWCASE_FOLDER}/data/exclude-me
+\`\`\`
+
+**What to notice:**
+- \`element: [A, B]\`, \`element: A, B\` and \`element: A\` are all valid.
+- The same \`filter\` is applied to every type. \`Heading\` matches on the heading text only; the other types match on their full text.
+- \`is_completed()\` and \`is_incomplete()\` only match tasks, so \`NOT is_completed()\` also matches every non-task element.
+- If a block sits inside another matched block, the outer block wins.
+`,
+    },
+    {
+        path: `${SHOWCASE_FOLDER}/17 - Live query.md`,
+        content: `# 17 — Live query
+
+A \`filter\` can ask for a value typed live by the reader, in one of two ways:
+the \`{{query}}\` placeholder, or a **blank** \`has_tag("")\` / \`matches("")\`.
+Either one makes the block render a search box **above** it (always visible,
+no hover needed). Typing there re-filters the block live, without editing the
+code block. Before anything is typed, the block shows a prompt instead of
+running the filter.
+
+## The {{query}} placeholder
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: List
+filter: contains("{{query}}")
+recursive: true
+excludeFolder: ${SHOWCASE_FOLDER}/data/exclude-me
+\`\`\`
+
+**Try it:** type \`budget\`, then \`archive\`, then clear the box.
+
+## A blank has_tag("") — fill in the tag live
+
+Leave \`has_tag("")\` empty and the typed text becomes the tag to search for
+(no need to type \`{{query}}\` yourself):
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: List
+filter: has_tag("")
+recursive: true
+\`\`\`
+
+**Try it:** type \`project\`, then \`meeting\`.
+
+## Combine it with the rest of the filter DSL
+
+\`{{query}}\` is just another value — combine it with tags, booleans, and other
+primitives:
+
+\`\`\`moc
+folder: ${SHOWCASE_FOLDER}/data
+element: Task
+filter: is_incomplete() AND contains("{{query}}")
+recursive: true
+\`\`\`
+
+**What to notice:**
+- Until you type something, the block shows "Type a tag or phrase above to search." — it does not run the filter unfilled.
+- The typed value is JSON-quoted before it fills \`has_tag("")\`/\`matches("")\`, so quotes you type can't break the filter.
+- \`{{query}}\`/blank primitives only work inside \`filter\`, not \`folder\`.
+- The typed value isn't saved with the note — it resets when you reopen it.
+- **Copy** and **Bake** both use whatever is currently typed in the box, and decline with a notice if the box is still empty.
 `,
     },
 ];

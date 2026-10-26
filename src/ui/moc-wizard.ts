@@ -1,5 +1,6 @@
 import { App, Modal, Setting, MarkdownView, Notice, setIcon } from 'obsidian';
 import MOCPlugin from '../main';
+import { ElementType, VALID_ELEMENTS } from '../extractors';
 import {
     FolderSuggest,
     MultiTokenFolderSuggest,
@@ -27,7 +28,7 @@ import {
 
 export class MocWizardModal extends Modal {
     folder: string = '';
-    element: string = 'List';
+    elements: ElementType[] = ['List'];
     recursive: boolean = false;
     filterString: string = '';
     filterRoot: FilterGroupNode = createDefaultFilterGroup();
@@ -117,18 +118,25 @@ export class MocWizardModal extends Modal {
         elementLabel.createSpan({ text: ' *', cls: 'moc-mandatory-marker' });
         elementLabel.title = 'Type of element to include in the map';
         const elementGroup = elementRow.createDiv({ cls: 'moc-shaping-input-group' });
-        const elementSelect = elementGroup.createEl('select', { cls: 'dropdown moc-shaping-select' });
-        this.addSelectOption(elementSelect, 'List', 'List');
-        this.addSelectOption(elementSelect, 'Task', 'Task');
-        this.addSelectOption(elementSelect, 'Heading', 'Heading');
-        this.addSelectOption(elementSelect, 'Paragraph', 'Paragraph');
-        this.addSelectOption(elementSelect, 'Blockquote', 'Blockquote');
-        elementSelect.value = this.element;
-        elementSelect.onchange = () => {
-            this.element = elementSelect.value;
-            this.normalizeTaskFilters(this.filterRoot);
-            this.onOpen();
-        };
+        elementLabel.title = 'Types of element to include in the map (select one or more)';
+        const chipsEl = elementGroup.createDiv({ cls: 'moc-element-chips' });
+        for (const name of VALID_ELEMENTS) {
+            const chip = chipsEl.createEl('label', { cls: 'moc-element-chip' });
+            const checkbox = chip.createEl('input', { type: 'checkbox' });
+            checkbox.checked = this.elements.includes(name);
+            chip.createSpan({ text: name });
+            checkbox.onchange = () => {
+                const next = VALID_ELEMENTS.filter(v => v === name ? checkbox.checked : this.elements.includes(v));
+                if (next.length === 0) {
+                    checkbox.checked = true;
+                    new Notice('Select at least one element');
+                    return;
+                }
+                this.elements = next;
+                this.normalizeTaskFilters(this.filterRoot);
+                this.onOpen();
+            };
+        }
 
         // Exclude folder row
         const excludeFolderRow = sourceContainer.createDiv({ cls: 'moc-shaping-row' });
@@ -477,7 +485,7 @@ export class MocWizardModal extends Modal {
                     new FilterSuggest(
                         this.app,
                         text.inputEl,
-                        () => this.element,
+                        () => this.elements,
                         () => this.folder
                     );
                 });
@@ -719,7 +727,7 @@ export class MocWizardModal extends Modal {
     }
 
     isTaskFilterAllowed(): boolean {
-        return this.element === 'Task' || this.element === 'List';
+        return this.elements.includes('Task') || this.elements.includes('List');
     }
 
     compileRulePreview(rule: FilterRuleNode): string {
@@ -905,7 +913,7 @@ export class MocWizardModal extends Modal {
         hintEl.empty();
 
         const reshapesOutput = this.template.trim() !== '' || this.applyFnR.length > 0;
-        const rendersCheckboxes = this.element === 'Task' || this.element === 'List';
+        const rendersCheckboxes = this.elements.includes('Task') || this.elements.includes('List');
         const show = reshapesOutput && rendersCheckboxes && this.plugin.settings.interactiveTasks;
 
         hintEl.toggleClass('is-visible', show);
@@ -951,7 +959,7 @@ export class MocWizardModal extends Modal {
             const yamlLines = [
                 '```moc',
                 `folder: ${this.folder}`,
-                `element: ${this.element}`,
+                this.elements.length === 1 ? `element: ${this.elements[0]}` : `element: [${this.elements.join(', ')}]`,
                 `filter: ${filterString}`,
             ];
 

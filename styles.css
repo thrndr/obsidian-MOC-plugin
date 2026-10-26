@@ -40,6 +40,31 @@
     position: relative;
 }
 
+.moc-query-bar {
+    margin: 0 0 8px 6px;
+}
+
+input.moc-query-input {
+    width: 100%;
+    max-width: 420px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-size: var(--font-ui-medium);
+}
+
+input.moc-query-input:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+input.moc-query-input::placeholder {
+    color: var(--text-muted);
+}
+
 .moc-toolbar {
     position: absolute;
     top: 4px;
@@ -982,6 +1007,22 @@ select.dropdown.moc-shaping-pill-select {
 .moc-form-cancel-btn:hover {
     background-color: var(--background-modifier-hover);
     color: var(--text-normal);
+}
+
+/* Multi-select element chips in the wizard */
+.moc-element-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 4px 8px;
+}
+
+.moc-element-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: var(--font-ui-small);
 }
 
 /* ===== Jump to source (per matched block) ===== */

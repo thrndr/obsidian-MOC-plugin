@@ -1,5 +1,6 @@
 import { App, CachedMetadata, Keymap, MarkdownRenderer, MarkdownPostProcessorContext, MarkdownRenderChild, moment, Notice, setIcon, TFile, TFolder, debounce, TAbstractFile } from 'obsidian';
 import { MOCPluginSettings } from './settings';
+import { extractElements, normalizeElements } from './extractors';
 
 export type FilterType = 'has_word' | 'contains' | 'has_text' | 'matches' | 'has_tag' | 'is_completed' | 'is_incomplete' | 'properties';
 
@@ -296,7 +297,7 @@ export function evaluateFilter(text: string, node: ASTNode, isCompletedTask?: bo
 
 
 
-function extractTags(text: string): string[] {
+export function extractTags(text: string): string[] {
     const tags = new Set<string>();
     const tagRegex = /(?:^|\s)(#[^\s#]+)/g;
     let match;
@@ -398,6 +399,24 @@ export interface MatchedBlock {
     taskLines: TaskLineRef[];
     /** Zero-based line number this block starts at in its source note. */
     startLine: number;
+    element?: string;
+}
+
+/**
+ * Pushes the spacing between two adjacent blocks of one note. Blocks of different
+ * element types always get a blank line so a paragraph never merges into a preceding list.
+ */
+export function pushBlockSeparator(
+    out: string[],
+    config: Pick<MocConfig, 'blockSeparator'>,
+    prev: MatchedBlock,
+    next: MatchedBlock
+): void {
+    if (config.blockSeparator === 'divider') {
+        out.push("", "---", "");
+    } else if (config.blockSeparator === 'newline' || (prev.element !== undefined && next.element !== undefined && prev.element !== next.element)) {
+        out.push("");
+    }
 }
 
 /**
@@ -639,6 +658,37 @@ export function isPathInTemplateFolder(path: string, templateFolder: string): bo
     return isFolderWithin(parentPathOf(path), folder, true);
 }
 
+/**
+ * Whether `filter` needs a live query text box: either it contains the `{{query}}`
+ * placeholder, or it leaves `has_tag("")` or `matches("")` blank to be filled in.
+ */
+export function configWantsQuery(config: Pick<MocConfig, 'filter'>): boolean {
+    return typeof config.filter === 'string' && (
+        config.filter.includes('{{query}}') ||
+        /has_tag\s*\(\s*""\s*\)/.test(config.filter) ||
+        /matches\s*\(\s*""\s*\)/.test(config.filter)
+    );
+}
+
+/**
+ * Returns `config` with the live query value filled into `filter`: `{{query}}` is replaced
+ * with the trimmed query text, and a blank `has_tag("")` or `matches("")` gets it as their
+ * (JSON-quoted) argument. A no-op (returns `config` unchanged) while the query is empty or
+ * blank, so an unfilled `{{query}}`/blank primitive is left for `configWantsQuery` to see.
+ */
+export function applyQuery(config: MocConfig, query: string): MocConfig {
+    if (typeof config.filter !== 'string') return config;
+    if (!query || !query.trim()) return config;
+
+    const trimmed = query.trim();
+    const quoted = JSON.stringify(trimmed);
+    let filter = config.filter;
+    filter = filter.replace(/\{\{query\}\}/g, trimmed);
+    filter = filter.replace(/has_tag\s*\(\s*""\s*\)/g, `has_tag(${quoted})`);
+    filter = filter.replace(/matches\s*\(\s*""\s*\)/g, `matches(${quoted})`);
+    return { ...config, filter };
+}
+
 export function applyTemplate(text: string, template: string, file: TFile): string {
     return template.replace(/\{\{(content|file|path|link)\}\}/g, (match, p1) => {
         if (p1 === 'content') return text;
@@ -651,7 +701,7 @@ export function applyTemplate(text: string, template: string, file: TFile): stri
 
 export interface MocConfig {
     folder?: string;
-    element?: string;
+    element?: string | string[];
     filter?: string;
     recursive?: boolean;
     groupBy?: string;
@@ -695,6 +745,9 @@ export interface MocRenderResult {
     segments?: MocSegment[];
 }
 
+/** Shown in place of the block while a live query is required but nothing has been typed yet. */
+export const QUERY_EMPTY_STATE_MESSAGE = 'Type a tag or phrase above to search.';
+
 class MocRenderChild extends MarkdownRenderChild {
     config: MocConfig;
     app: App;
@@ -702,10 +755,13 @@ class MocRenderChild extends MarkdownRenderChild {
     settings: MOCPluginSettings;
     scope: MocScope;
     updateDebounced: () => void;
+    updateDebouncedQuery: () => void;
     el: HTMLElement;
     ctx: MarkdownPostProcessorContext;
     wrapper: HTMLDivElement | null = null;
     container: HTMLDivElement | null = null;
+    /** Live value typed into the query text box, filled into `filter` by `applyQuery`. Not persisted. */
+    queryText: string = '';
 
     constructor(
         containerEl: HTMLElement,
@@ -728,6 +784,16 @@ class MocRenderChild extends MarkdownRenderChild {
         this.updateDebounced = debounce(async () => {
             await this.renderMoc();
         }, 500, true);
+
+        this.updateDebouncedQuery = debounce(async () => {
+            await this.renderMoc();
+        }, 300, true);
+    }
+
+    /** Called on every keystroke in the live query box. */
+    setQuery(value: string) {
+        this.queryText = value;
+        this.updateDebouncedQuery();
     }
 
     private resolveScope(): MocScope {
@@ -785,7 +851,13 @@ class MocRenderChild extends MarkdownRenderChild {
     }
 
     async renderMoc() {
-        const result = await generateMocMarkdown(this.config, this.app, this.sourcePath, this.settings);
+        if (this.container && configWantsQuery(this.config) && !this.queryText.trim()) {
+            this.container.empty();
+            this.container.createDiv({ text: QUERY_EMPTY_STATE_MESSAGE, cls: 'moc-empty' });
+            return;
+        }
+
+        const result = await generateMocMarkdown(applyQuery(this.config, this.queryText), this.app, this.sourcePath, this.settings);
 
         if (this.container) {
             this.container.empty();
@@ -964,9 +1036,9 @@ export async function generateMocMarkdown(
 
     const hostFile = sourceFile instanceof TFile ? sourceFile : null;
 
-    const validElements = ['List', 'Task', 'Heading', 'Paragraph', 'Blockquote'];
-    if (!validElements.includes(config.element as string)) {
-        return { error: `Error: element must be one of: ${validElements.join(', ')}.`, cls: 'moc-error' };
+    const { elements, error: elementError } = normalizeElements(config.element);
+    if (!elements) {
+        return { error: elementError, cls: 'moc-error' };
     }
 
     if (!config.filter || typeof config.filter !== 'string') {
@@ -1081,142 +1153,22 @@ export async function generateMocMarkdown(
         const taskLineMap = buildTaskLineMap(fileCache, lines);
         const fileBlockStart = matchedBlocks.length;
 
-        if (config.element === 'List' || config.element === 'Task') {
-            if (!fileCache.listItems || fileCache.listItems.length === 0) continue;
+        const rawBlocks = extractElements({
+            fileCache,
+            lines,
+            matches: (text, isCompletedTask) => evaluateFilter(text, parsedFilter, isCompletedTask),
+            tagsOf: extractTags,
+        }, elements);
 
-            const listItems = fileCache.listItems;
-            let skipUntilLine = -1;
-
-            for (let i = 0; i < listItems.length; i++) {
-                const item = listItems[i];
-                if (!item) continue;
-
-                if (config.element === 'Task' && item.task === undefined) continue;
-
-                if (item.position.start.line <= skipUntilLine) continue;
-
-                const lineContent = lines[item.position.start.line];
-                if (!lineContent) continue;
-
-                if (evaluateFilter(lineContent, parsedFilter, item.task !== undefined ? item.task !== ' ' : undefined)) {
-
-                    let lastChildLine = item.position.start.line;
-                    let j = i + 1;
-                    while (j < listItems.length) {
-                        const nextItem = listItems[j];
-                        if (!nextItem) { j++; continue; }
-
-                        if (nextItem.parent === item.position.start.line || (nextItem.parent !== undefined && nextItem.parent > item.position.start.line)) {
-                            lastChildLine = nextItem.position.start.line;
-                            j++;
-                        } else {
-                            break;
-                        }
-                    }
-
-                    skipUntilLine = lastChildLine;
-
-                    const startLine = item.position.start.line;
-                    const lastItemMatched = listItems[j - 1];
-                    const endLine = lastItemMatched ? lastItemMatched.position.end.line : startLine;
-
-                    const baseIndentMatch = lines[startLine]?.match(/^(\s*)/);
-                    const baseIndent = baseIndentMatch ? baseIndentMatch[1] : '';
-
-                    const blockLines: string[] = [];
-                    for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
-                        let currentLine = lines[lineNum];
-                        if (currentLine === undefined) continue;
-
-                        if (baseIndent && currentLine.startsWith(baseIndent)) {
-                            currentLine = currentLine.substring(baseIndent.length);
-                        }
-                        blockLines.push(currentLine);
-                    }
-                    const blockText = blockLines.join('\n');
-                    matchedBlocks.push({
-                        file,
-                        lines: blockLines,
-                        tags: extractTags(blockText),
-                        taskLines: collectTaskLines(taskLineMap, startLine, endLine),
-                        startLine
-                    });
-                }
-            }
-        } else if (config.element === 'Heading') {
-            if (!fileCache.headings || fileCache.headings.length === 0) continue;
-
-            const headings = fileCache.headings;
-            let skipUntilLine = -1;
-
-            for (let i = 0; i < headings.length; i++) {
-                const heading = headings[i];
-                if (!heading) continue;
-                if (heading.position.start.line <= skipUntilLine) continue;
-
-                const lineContent = lines[heading.position.start.line];
-                if (!lineContent) continue;
-
-                if (evaluateFilter(heading.heading, parsedFilter)) {
-
-                    const startLine = heading.position.start.line;
-                    let endLine = lines.length - 1;
-
-                    for (let j = i + 1; j < headings.length; j++) {
-                        const nextHeading = headings[j];
-                        if (nextHeading && nextHeading.level <= heading.level) {
-                            endLine = nextHeading.position.start.line - 1;
-                            break;
-                        }
-                    }
-
-                    skipUntilLine = endLine;
-
-                    const blockLines: string[] = [];
-                    for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
-                        if (lines[lineNum] !== undefined) {
-                            blockLines.push(lines[lineNum] as string);
-                        }
-                    }
-                    const blockText = blockLines.join('\n');
-                    matchedBlocks.push({
-                        file,
-                        lines: blockLines,
-                        tags: extractTags(blockText),
-                        taskLines: collectTaskLines(taskLineMap, startLine, endLine),
-                        startLine
-                    });
-                }
-            }
-        } else if (config.element === 'Paragraph' || config.element === 'Blockquote') {
-            if (!fileCache.sections || fileCache.sections.length === 0) continue;
-
-            const targetType = config.element.toLowerCase();
-
-            for (const section of fileCache.sections) {
-                if (section.type !== targetType) continue;
-
-                const startLine = section.position.start.line;
-                const endLine = section.position.end.line;
-
-                const sectionLines = [];
-                for (let i = startLine; i <= endLine; i++) {
-                    if (lines[i] !== undefined) {
-                        sectionLines.push(lines[i]);
-                    }
-                }
-                const sectionText = sectionLines.join('\n');
-
-                if (evaluateFilter(sectionText, parsedFilter)) {
-                    matchedBlocks.push({
-                        file,
-                        lines: sectionLines as string[],
-                        tags: extractTags(sectionText),
-                        taskLines: collectTaskLines(taskLineMap, startLine, endLine),
-                        startLine
-                    });
-                }
-            }
+        for (const raw of rawBlocks) {
+            matchedBlocks.push({
+                file,
+                lines: raw.lines,
+                tags: raw.tags,
+                element: raw.element,
+                taskLines: collectTaskLines(taskLineMap, raw.startLine, raw.endLine),
+                startLine: raw.startLine
+            });
         }
 
         // Keep the first N matches from this file, in document order, so one
@@ -1364,14 +1316,9 @@ export async function generateMocMarkdown(
                     for (const taskLine of block.taskLines) {
                         taskRefs.push({ file: block.file, ...taskLine });
                     }
-                    if (i < blocks.length - 1) {
-                        if (config.blockSeparator === 'divider') {
-                            outputLines.push("");
-                            outputLines.push("---");
-                            outputLines.push("");
-                        } else if (config.blockSeparator === 'newline') {
-                            outputLines.push("");
-                        }
+                    const nextBlock = blocks[i + 1];
+                    if (nextBlock) {
+                        pushBlockSeparator(outputLines, config, block, nextBlock);
                     }
                 }
             }
@@ -1488,14 +1435,9 @@ export async function generateMocMarkdown(
                         for (const taskLine of block.taskLines) {
                             taskRefs.push({ file: block.file, ...taskLine });
                         }
-                        if (i < fileBlocks.length - 1) {
-                            if (config.blockSeparator === 'divider') {
-                                outputLines.push("");
-                                outputLines.push("---");
-                                outputLines.push("");
-                            } else if (config.blockSeparator === 'newline') {
-                                outputLines.push("");
-                            }
+                        const nextBlock = fileBlocks[i + 1];
+                        if (nextBlock) {
+                            pushBlockSeparator(outputLines, config, block, nextBlock);
                         }
                     }
                 }
@@ -1562,6 +1504,17 @@ export async function processMocBlock(
 
     const container = wrapper.createDiv({ cls: 'moc-container' });
 
+    let queryInput: HTMLInputElement | undefined;
+    if (configWantsQuery(config)) {
+        const queryBar = wrapper.createDiv({ cls: 'moc-query-bar' });
+        queryInput = queryBar.createEl('input', {
+            type: 'search',
+            cls: 'moc-query-input',
+            placeholder: 'Tag or text to search…'
+        });
+        wrapper.insertBefore(queryBar, container);
+    }
+
     const childComponent = new MocRenderChild(
         container,
         config,
@@ -1575,9 +1528,17 @@ export async function processMocBlock(
     childComponent.container = container;
     ctx.addChild(childComponent);
 
+    if (queryInput) {
+        queryInput.addEventListener('input', () => childComponent.setQuery(queryInput.value));
+    }
+
     copyButton.onClickEvent(async (e) => {
         e.preventDefault();
-        const result = await generateMocMarkdown(config, app, childComponent.sourcePath, settings);
+        if (configWantsQuery(config) && !childComponent.queryText.trim()) {
+            new Notice("Type a query first");
+            return;
+        }
+        const result = await generateMocMarkdown(applyQuery(config, childComponent.queryText), app, childComponent.sourcePath, settings);
         if (result.markdownText) {
             await navigator.clipboard.writeText(result.markdownText);
             new Notice("Copied to clipboard");
@@ -1588,6 +1549,10 @@ export async function processMocBlock(
 
     bakeButton.onClickEvent(async (e) => {
         e.preventDefault();
+        if (configWantsQuery(config) && !childComponent.queryText.trim()) {
+            new Notice("Type a query first");
+            return;
+        }
         const sectionInfo = ctx.getSectionInfo(el);
         if (!sectionInfo) {
             new Notice("Could not determine section to bake");
@@ -1597,7 +1562,7 @@ export async function processMocBlock(
         // note is renamed while this block stays on screen.
         const file = app.vault.getAbstractFileByPath(childComponent.sourcePath);
         if (file instanceof TFile) {
-            const result = await generateMocMarkdown(config, app, childComponent.sourcePath, settings);
+            const result = await generateMocMarkdown(applyQuery(config, childComponent.queryText), app, childComponent.sourcePath, settings);
             if (result.markdownText) {
                 await app.vault.process(file, (data) => {
                     const lines = data.split(/\r?\n/);
