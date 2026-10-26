@@ -20,6 +20,7 @@ The Obsidian MOC Plugin is a smart **Map of Content** generator for [Obsidian](h
 - **Advanced Filtering**: Match elements by exact word, text patterns, tags, task completion status, regular expressions, or frontmatter properties — with full boolean logic (`AND`, `OR`, `NOT`).
 - **Live Query**: Put `{{query}}` (or a blank `has_tag("")`/`matches("")`) in a `filter` to get a search box above the block, so anyone reading the note can refine results on the fly.
 - **Property Comparison Operators**: Filter by frontmatter values using `==`, `!=`, `>`, `<`, `>=`, `<=` for numeric and date comparisons.
+- **Date Parameters**: Compare with moments relative to now, such as `properties(due < {{startOfDay}})` or `properties(file.mtime >= {{now-24h}})`, read dates from daily-note filenames with `file.day`, and point at dated folders with `{{now:YYYY/MM}}`. Blocks move on to the new day by themselves.
 - **Hierarchical Grouping**: Group matching elements dynamically by **folder**, **creation date (cday)**, **modification date (mday)**, **tag**, or any **frontmatter property**.
 - **Sorting**: Sort scanned files by filename, creation date, or modification date.
 - **File and Result Limits**: Limit notes scanned (`fileLimit`), total results shown (`blockLimit`), or results taken from any one note (`blocksPerFile`).

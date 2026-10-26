@@ -18,8 +18,9 @@ See [AGENTS.md](AGENTS.md) for general Obsidian plugin conventions (build, lint,
   - `list.ts` (List/Task), `heading.ts`, `section.ts` (Paragraph/Blockquote).
   - `index.ts`: `normalizeElements`, `mergeBlocks`, `extractElements`.
   - Each `RawBlock` carries `startLine`/`endLine`. `generateMocMarkdown` turns those into the `MatchedBlock.startLine` used by jump-to-source (`BlockRef`) and into `taskLines` via `collectTaskLines`, so extractors stay unaware of both features.
+- `src/parameters.ts`, `src/relative-dates.ts`, `src/utils/`: `{{…}}` parameter validation (`findParameterError`) and date parameters. `findConfigParameterError` in `moc.ts` is shared by blocks and the wizard.
 - `src/ui/`: creation wizard (`moc-wizard.ts`), filter tree builder, autocomplete suggesters.
-- `src/commands/create-showcase.ts`: generates the demo vault folder; add a note here for every new feature. Notes 13-15 cover interactive tasks, jump to source and renames/moves; 16-17 cover multiple elements and the live query.
+- `src/commands/create-showcase.ts`: generates the demo vault folder; add a note here for every new feature. Notes 13-16 cover interactive tasks, jump to source, renames/moves and relative dates; 17-18 cover multiple elements and the live query.
 
 ## Multiple elements (feature)
 
@@ -39,6 +40,8 @@ See [AGENTS.md](AGENTS.md) for general Obsidian plugin conventions (build, lint,
 - `renderMoc()` special-cases the empty state: if `configWantsQuery(this.config)` is true and `queryText` is blank, it shows `QUERY_EMPTY_STATE_MESSAGE` ("Type a tag or phrase above to search.") and returns *without* calling `generateMocMarkdown` at all — an unfilled `{{query}}` is otherwise treated as a literal string by the filter DSL (harmless, but pointless) rather than a parse error, so this early return is the only thing standing between "nothing typed yet" and "silently searches for the literal text `{{query}}`".
 - Copy and Bake call `applyQuery(config, childComponent.queryText)` before `generateMocMarkdown`, and refuse with a `Notice` ("Type a query first") while the query is empty — **this is a deliberate deviation from the reference build**, which passes the raw, unfilled `config` to Copy/Bake regardless of what's typed (i.e. ignores the live query there entirely). Confirmed with the user on 2026-09-27; don't revert without checking.
 - `{{query}}`/blank-primitive filling only applies inside `filter`, not in `folder`.
+- Since 1.6.0 every `{{…}}` the plugin does not know is an error, so `parameters.ts` knows `{{query}}` by name: `findParameterError` skips it in a `filter` (the search box fills it in) and reports it in a path, where nothing does. The match is exact — `{{Query}}` is a typo, not a placeholder, because `applyQuery` would not fill it either.
+- `renderMoc()` captures `now` once and passes it to `generateMocMarkdown` alongside the filled-in query, so date parameters and the live query resolve against the same render.
 
 The reference bundle this was checked against lives in `dynamic_query/` (untracked, not part of plugin source — it's an installed build someone dropped in for comparison, not a template to copy wholesale). Before trusting anything found there again, diff it against the current build (`main.js`/`styles.css`/`manifest.json`) first — a copy that is byte-identical to this repo's own output means it just doesn't contain what's being asked about, not that the feature has no reference (this happened once; see the `ask-before-guessing-on-inconsistent-reference` memory).
 

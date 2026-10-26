@@ -7,16 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## In-progress
 
-- **Feature: Live query** — `filter` can now ask for a value typed live by the reader: the `{{query}}` placeholder, or a blank `has_tag("")`/`matches("")` filled in with the typed text (JSON-quoted, so typed quotes can't break the filter). When present, the block renders an always-visible search box above it; typing there re-renders the block (debounced ~300 ms) with the placeholder filled in, without editing the note. Before anything is typed, the block shows a prompt ("Type a tag or phrase above to search.") instead of running the filter. **Copy** and **Bake** use the currently typed value and decline with a notice while the box is empty. The typed value is not persisted and resets when the note is reopened. Added `configWantsQuery`/`applyQuery` in `moc.ts`, tests (`src/tests/moc-query.test.ts`), showcase note "17 - Live query", and docs (`configuration.md#live-query`, `toolbar.md`).
+- **Feature: Live query** — `filter` can now ask for a value typed live by the reader: the `{{query}}` placeholder, or a blank `has_tag("")`/`matches("")` filled in with the typed text (JSON-quoted, so typed quotes can't break the filter). When present, the block renders an always-visible search box above it; typing there re-renders the block (debounced ~300 ms) with the placeholder filled in, without editing the note. Before anything is typed, the block shows a prompt ("Type a tag or phrase above to search.") instead of running the filter. **Copy** and **Bake** use the currently typed value and decline with a notice while the box is empty. The typed value is not persisted and resets when the note is reopened. Added `configWantsQuery`/`applyQuery` in `moc.ts`, tests (`src/tests/moc-query.test.ts`), showcase note "18 - Live query", and docs (`configuration.md#live-query`, `toolbar.md`).
 - **Feature: Multiple elements per block** — `element` now accepts a list (`element: [Task, Blockquote]`) or a comma-separated string as well as a single type. Results are merged in document order per note; a block inside another matched block (e.g. a task inside a matching heading section) is dropped so nothing is repeated. Blocks of different types are always separated by a blank line so paragraphs never merge into a preceding list. The wizard's Element dropdown is now a multi-select. Blocks using a list of elements are not understood by plugin versions before 1.5.0.
-- **Refactor**: Element extraction moved out of `generateMocMarkdown` into `src/extractors/`, with new unit tests (`src/tests/moc-elements.test.ts`). Added showcase note "16 - Multiple elements".
+- **Refactor**: Element extraction moved out of `generateMocMarkdown` into `src/extractors/`, with new unit tests (`src/tests/moc-elements.test.ts`). Added showcase note "17 - Multiple elements".
+- **Fix: Obsidian plugin review** — The date features from 1.6.0 now pass the review's type checks, which use TypeScript 6. The plugin works exactly as before.
+- **Maintenance** — The project now builds with TypeScript 6 and the latest Obsidian lint rules, and lints its build scripts and tests too, so the same issues are caught before a release.
+- **Merge**: Merged upstream `main` (1.5.1 through 1.6.1) into the fork carrying multiple elements and the live query. Element extraction still runs through `src/extractors/`, supplying the source line each block came from so jump-to-source and task write-back work for every element type. `{{query}}` is now a parameter the plugin recognises, so 1.6.0's parameter checks accept a live-query `filter` instead of rejecting it as unknown, and report it as a mistake in `folder`, where nothing fills it in. Renders stay date-aware: the live query and the captured `now` are both threaded into `generateMocMarkdown`. The wizard quotes its YAML values while still emitting `element: [X, Y]`. Showcase notes for multiple elements and the live query moved to 17 and 18, since upstream took 16 for relative dates.
+
+## 1.6.0 - 2026-10-18
+
+- **Feature: Date parameters** — Filter against moments relative to now, such as `{{startOfDay}}`, `{{endOfWeek}}` or `{{now-24h}}`: `properties(due < {{startOfDay}})` lists overdue items. A format turns a date into text, as in `folder: Journal/{{now:YYYY/MM}}`. Parameters work in `folder`, `filter` and the exclusions, and blocks move on to a new day by themselves.
+- **Feature: File dates** — `properties()` reads `file.day` (the date in a daily note's filename), `file.ctime` and `file.mtime`.
+- **Feature: Parameter errors** — A `{{…}}` that cannot be replaced, such as `{{now-0.5h}}` or `{{this.filname}}`, shows an error instead of silently matching nothing.
+- **UI: Dates in the wizard** — Presets such as **is today** and **is this week**, relative values with an offset, and a check of the block before it is inserted.
+- **Change: Date comparisons** — Dates compare as moments in local time, so comparing a date with a date and time gives the same result in every time zone.
+- **Change: Literal braces** — `contains("{{title}}")` is now an error. Search for braces with `matches("\{\{title\}\}")`.
+- **Fix: Whole-vault blocks** — `folder: ""` scans the entire vault, as documented.
+- **Fix: Wizard YAML** — The wizard quotes values such as `{{this.folder}}`, so the blocks it writes always load.
+- **Showcase** — Note 16 walks through every date feature with sample notes dated when the showcase is created, and a broken block in note 12 is fixed.
+
+
+## 1.5.2 - 2026-10-04
+
 - **Fix: Refresh on rename and move** — `moc` blocks now refresh when a note is renamed or moved into, out of, or within the watched folder. Previously a moved-in note stayed missing, and a moved-out or renamed note lingered with a dead link, until some other edit triggered a refresh. Renaming a folder refreshes every block watching notes inside it.
 - **Fix: Renaming the note that holds a block** — The block now follows its note's new path, so `{{this.filename}}`, `{{this.folder}}` and `{{this.path}}` re-resolve against the new name, and **Copy** and **Bake** keep working instead of reporting "Source file not found".
 - **Fix: Refresh on template edits** — Editing a template note now refreshes the blocks that use it. Template folders usually sit outside the watched folder, so these edits were previously ignored.
 - **Fix: Missing folder error** — A block whose `folder` does not exist, for example after the folder was renamed, now says so instead of reporting that the folder contains no notes.
 - **Fix: Excluded notes no longer trigger refreshes** — Edits inside an `excludeFolder` or to an `excludeFile` no longer re-render the block. Scanning and auto-refresh now share one scope check, so they can no longer disagree about which notes a block covers.
 - **Showcase: Renames and moves** — **Create showcase** now adds note 15 and a `rename-lab` sandbox folder with step-by-step walkthroughs for each of the fixes above.
-- **Merge**: Merged `main` (1.5.1/1.5.2) into the live query branch. Element extraction still runs through `src/extractors/`, which now also supplies the source line each block came from, so jump-to-source and interactive task write-back keep working for every element type, including combined ones. The showcase notes for multiple elements and the live query moved to 16 and 17, since 13-15 were taken by the merged features.
+
 
 ## 1.5.1 - 2026-09-26
 

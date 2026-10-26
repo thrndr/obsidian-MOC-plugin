@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { test, describe } from 'node:test';
 import { App, TFile, TFolder, CachedMetadata } from 'obsidian';
 import { applyQuery, configWantsQuery, generateMocMarkdown } from '../moc';
+import { findParameterError } from '../parameters';
 import type { MOCPluginSettings } from '../settings';
 
 const DEFAULT_SETTINGS: MOCPluginSettings = { rules: [], templateFolder: '', interactiveTasks: true, showJumpToSource: true };
@@ -102,5 +103,21 @@ void describe('generateMocMarkdown with a query already filled in by applyQuery'
         const result = await generateMocMarkdown(applyQuery(config, 'alpha'), fakeApp(lines), 'x.md', DEFAULT_SETTINGS);
         assert.ok(result.markdownText?.includes('alpha item'));
         assert.ok(result.markdownText?.includes('beta item'));
+    });
+});
+
+void describe('{{query}} as a parameter', () => {
+    void test('is accepted in a filter, where the query box fills it in', () => {
+        assert.strictEqual(findParameterError('contains("{{query}}")', 'filter'), null);
+        assert.strictEqual(findParameterError('is_incomplete() AND contains("{{query}}")', 'filter'), null);
+    });
+
+    void test('is rejected in a path, where nothing fills it in', () => {
+        assert.match(findParameterError('Journal/{{query}}', 'path') ?? '', /only works in filter/);
+    });
+
+    void test('a misspelling is still an unknown parameter', () => {
+        assert.match(findParameterError('contains("{{queyr}}")', 'filter') ?? '', /unknown parameter/);
+        assert.match(findParameterError('contains("{{Query}}")', 'filter') ?? '', /unknown parameter/);
     });
 });
