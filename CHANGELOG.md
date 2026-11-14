@@ -10,9 +10,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Feature: Live query** — `filter` can now ask for a value typed live by the reader: the `{{query}}` placeholder, or a blank `has_tag("")`/`matches("")` filled in with the typed text (JSON-quoted, so typed quotes can't break the filter). When present, the block renders an always-visible search box above it; typing there re-renders the block (debounced ~300 ms) with the placeholder filled in, without editing the note. Before anything is typed, the block shows a prompt ("Type a tag or phrase above to search.") instead of running the filter. **Copy** and **Bake** use the currently typed value and decline with a notice while the box is empty. The typed value is not persisted and resets when the note is reopened. Added `configWantsQuery`/`applyQuery` in `moc.ts`, tests (`src/tests/moc-query.test.ts`), showcase note "18 - Live query", and docs (`configuration.md#live-query`, `toolbar.md`).
 - **Feature: Multiple elements per block** — `element` now accepts a list (`element: [Task, Blockquote]`) or a comma-separated string as well as a single type. Results are merged in document order per note; a block inside another matched block (e.g. a task inside a matching heading section) is dropped so nothing is repeated. Blocks of different types are always separated by a blank line so paragraphs never merge into a preceding list. The wizard's Element dropdown is now a multi-select. Blocks using a list of elements are not understood by plugin versions before 1.5.0.
 - **Refactor**: Element extraction moved out of `generateMocMarkdown` into `src/extractors/`, with new unit tests (`src/tests/moc-elements.test.ts`). Added showcase note "17 - Multiple elements".
+- **Merge**: Merged upstream `main` (1.5.1 through 1.6.1) into the fork carrying multiple elements and the live query. Element extraction still runs through `src/extractors/`, supplying the source line each block came from so jump-to-source and task write-back work for every element type. `{{query}}` is now a parameter the plugin recognises, so 1.6.0's parameter checks accept a live-query `filter` instead of rejecting it as unknown, and report it as a mistake in `folder`, where nothing fills it in. Renders stay date-aware: the live query and the captured `now` are both threaded into `generateMocMarkdown`. The wizard quotes its YAML values while still emitting `element: [X, Y]`. Showcase notes for multiple elements and the live query moved to 17 and 18, since upstream took 16 for relative dates.
+- **Fix: Obsidian plugin review** — Removed the three `:has()` CSS selectors the review flags as slow. The wizard's path fields and the spacing under results now use plain classes, and look the same as before.
+
+## 1.6.2 - 2026-10-31
+
+- **Docs: Real screenshots** — The README, docs and community store images now show the plugin itself (the Use cases dashboards, ticking a task in split view, the wizard) instead of drawn mockups. The README links to docs.mkshp.dev, the manual install path in the docs uses the plugin's folder name `maps-of-content`, and the plugin description says what it does in plain words.
+
+- **UI: Wizard layout** — The folder field is wide enough to show a full path, date presets such as 'is in the next 7 days' are no longer cut off, and the Insert block button stays in view when the wizard is taller than the window.
+
+- **Fix: Loose spacing between results** — Results sat a full blank line apart, because each one renders in its own container and the list margins inside it were not removed. They now sit as close together as a normal list.
+
+- **Showcase: Use cases** — **Create showcase** also adds a `Use cases` folder: a small working vault of projects, meetings, book notes and a journal, with five dashboards (This week, Overdue, Decisions log, Reading highlights, Ideas inbox). Its dates are set when you run the command, so the overdue and due-soon lists always have results.
+
+- **Showcase: Realistic sample notes** — **Create showcase** now fills its examples with a small studio's project notes, a trip and a tax return instead of placeholder "Alpha/Beta/Gamma" data. Eight example blocks that showed "No elements matching filter" (in notes 06, 07, 08, 09 and 12) now show results.
+
+
+## 1.6.1 - 2026-10-18
+
 - **Fix: Obsidian plugin review** — The date features from 1.6.0 now pass the review's type checks, which use TypeScript 6. The plugin works exactly as before.
 - **Maintenance** — The project now builds with TypeScript 6 and the latest Obsidian lint rules, and lints its build scripts and tests too, so the same issues are caught before a release.
-- **Merge**: Merged upstream `main` (1.5.1 through 1.6.1) into the fork carrying multiple elements and the live query. Element extraction still runs through `src/extractors/`, supplying the source line each block came from so jump-to-source and task write-back work for every element type. `{{query}}` is now a parameter the plugin recognises, so 1.6.0's parameter checks accept a live-query `filter` instead of rejecting it as unknown, and report it as a mistake in `folder`, where nothing fills it in. Renders stay date-aware: the live query and the captured `now` are both threaded into `generateMocMarkdown`. The wizard quotes its YAML values while still emitting `element: [X, Y]`. Showcase notes for multiple elements and the live query moved to 17 and 18, since upstream took 16 for relative dates.
+
 
 ## 1.6.0 - 2026-10-18
 
